@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantEdge — Options Terminal</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2300D09C'/%3E%3Cpath d='M6 22l5-7 4 3 6-10 5 8' stroke='%230B0B1A' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ TOPBAR ============ -->
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><path d="M6 22l5-7 4 3 6-10 5 8" stroke="#0B0B1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="brand-name">QuantEdge<span class="brand-tag">Options</span></div>
+    </div>
+
+    <div class="ticker-strip" id="ticker-strip">
+        <!-- live tickers injected here -->
+    </div>
+
+    <div class="topbar-right">
+        <div class="conn-status" id="conn-status">
+            <span class="conn-dot"></span><span id="conn-label">Connecting</span>
+        </div>
+        <div class="clock" id="clock">--:--:--</div>
+        <button class="icon-btn" id="settings-btn" title="Settings">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <div class="avatar">VK</div>
+    </div>
+</header>
+
+<!-- ============ MAIN GRID ============ -->
+<div class="layout">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+        <div class="side-section">
+            <div class="side-label">Symbol</div>
+            <div class="symbol-tabs" id="symbol-tabs">
+                <button class="sym-tab active" data-symbol="NIFTY">NIFTY 50</button>
+                <button class="sym-tab" data-symbol="SENSEX">SENSEX</button>
+                <button class="sym-tab" data-symbol="FINNIFTY">FINNIFTY</button>
+            </div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">Timeframe</div>
+            <div class="tf-tabs" id="tf-tabs">
+                <button class="tf-tab" data-tf="1minute">1m</button>
+                <button class="tf-tab active" data-tf="5minute">5m</button>
+                <button class="tf-tab" data-tf="30minute">30m</button>
+                <button class="tf-tab" data-tf="1day">1D</button>
+            </div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">Market Pulse</div>
+            <div id="market-pulse" class="pulse-list">
+                <div class="pulse-row"><span>India VIX</span><span class="mono" id="pulse-vix">--</span></div>
+                <div class="pulse-row"><span>PCR</span><span class="mono" id="pulse-pcr">--</span></div>
+                <div class="pulse-row"><span>Adv / Dec</span><span class="mono" id="pulse-advdec">--</span></div>
+                <div class="pulse-row"><span>FII Flow</span><span class="mono" id="pulse-fii">--</span></div>
+            </div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">Account</div>
+            <div class="account-row"><span>Capital</span><span class="mono" id="acct-capital">₹5,00,000</span></div>
+            <div class="account-row"><span>Risk / Trade</span>
+                <select id="acct-risk" class="mini-select">
+                    <option value="1">1%</option>
+                    <option value="2" selected>2%</option>
+                    <option value="3">3%</option>
+                </select>
+            </div>
+            <div class="account-row"><span>Today P&amp;L</span><span class="mono" id="acct-pnl">₹0</span></div>
+            <div class="account-row"><span>Trades Left</span><span class="mono" id="acct-trades-left">5 / 5</span></div>
+        </div>
+
+        <div class="side-section logs-section">
+            <div class="side-label">System Log</div>
+            <div id="system-logs" class="system-logs"></div>
+        </div>
+    </aside>
+
+    <!-- MAIN PANEL -->
+    <main class="main-panel">
+        <div class="main-head">
+            <div class="main-head-left">
+                <span class="main-symbol" id="main-symbol">NIFTY 50</span>
+                <span class="main-price" id="main-price">--</span>
+                <span class="main-change" id="main-change">--</span>
+            </div>
+            <div class="main-head-right">
+                <div class="indicator-toggles">
+                    <button class="ind-toggle active" data-ind="ema">EMA</button>
+                    <button class="ind-toggle active" data-ind="vwap">VWAP</button>
+                    <button class="ind-toggle" data-ind="bb">BB</button>
+                </div>
+                <button class="ghost-btn" id="refresh-btn">↻ Refresh</button>
+            </div>
+        </div>
+
+        <div class="chart-wrap">
+            <div id="chart-container"></div>
+            <div id="chart-overlay-popups"></div>
+        </div>
+
+        <!-- Options Chain -->
+        <div class="chain-panel">
+            <div class="chain-head">
+                <span class="chain-title">Options Chain</span>
+                <div class="chain-controls">
+                    <select id="chain-expiry" class="mini-select"></select>
+                    <span class="chain-meta" id="chain-meta">PCR: -- • Max Pain: --</span>
+                </div>
+            </div>
+            <div class="chain-table-wrap">
+                <table class="chain-table" id="chain-table">
+                    <thead>
+                        <tr>
+                            <th class="ce">OI Chg</th>
+                            <th class="ce">OI</th>
+                            <th class="ce">IV</th>
+                            <th class="ce">LTP</th>
+                            <th>Strike</th>
+                            <th class="pe">LTP</th>
+                            <th class="pe">IV</th>
+                            <th class="pe">OI</th>
+                            <th class="pe">OI Chg</th>
+                        </tr>
+                    </thead>
+                    <tbody id="chain-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT SIGNAL PANEL -->
+    <aside class="signal-panel">
+        <div class="sp-head">
+            <span class="sp-title">Active Signal</span>
+            <span class="sp-mode" id="sp-mode">--</span>
+        </div>
+
+        <div id="signal-card-wrap">
+            <!-- signal card injected here -->
+        </div>
+
+        <div class="sp-section">
+            <div class="sp-section-title">Trade Checklist</div>
+            <div id="trade-checklist" class="checklist-box"></div>
+        </div>
+
+        <div class="sp-section">
+            <div class="sp-section-title">Recent Signals</div>
+            <div id="recent-signals" class="recent-list"></div>
+        </div>
+    </aside>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settings-modal" style="display:none">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>Settings</h3>
+            <button class="modal-close" id="settings-close">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <label>Account Capital (₹)</label>
+                <input type="number" id="set-capital" value="500000" step="50000">
+            </div>
+            <div class="form-row">
+                <label>Risk per Trade (%)</label>
+                <input type="number" id="set-risk" value="2" step="0.5" min="0.5" max="5">
+            </div>
+            <div class="form-row">
+                <label>Max Trades / Day</label>
+                <input type="number" id="set-max-trades" value="5" min="1" max="20">
+            </div>
+            <div class="form-row">
+                <label>Backend URL</label>
+                <input type="text" id="set-backend" value="http://localhost:4300">
+            </div>
+            <div class="form-row">
+                <button class="btn-primary" id="set-save">Save</button>
+            </div>
+            <div class="form-row" style="margin-top:14px; color:var(--text-3); font-size:11px;">
+                To enable live data, add your Breeze Connect credentials to <code>server/.env</code> and restart the backend.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="market.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
