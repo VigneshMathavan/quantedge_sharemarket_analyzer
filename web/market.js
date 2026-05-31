@@ -14,13 +14,25 @@ class MarketClient {
 
     setBackend(url) {
         this.backend = (url || '').replace(/\/$/, '');
-        if (this.backend) {
-            // Local dev — explicit backend URL
+        // WebSocket URL — Vercel rewrites are HTTP-only, can't proxy WS.
+        // In production, connect directly to Railway. Use window.QE_WS_URL
+        // override if set, otherwise auto-detect.
+        if (window.QE_WS_URL) {
+            this.wsUrl = window.QE_WS_URL;
+        } else if (this.backend) {
+            // Local dev — derive WS from explicit backend URL
             this.wsUrl = this.backend.replace(/^http/, 'ws') + '/ws';
         } else {
-            // Production (Vercel) — use same origin as page (Vercel rewrites /ws to Railway)
-            const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            this.wsUrl = `${wsProto}//${window.location.host}/ws`;
+            // Production — must hit Railway directly (Vercel can't proxy WS)
+            const host = window.location.hostname;
+            const isVercel = host.endsWith('.vercel.app');
+            if (isVercel) {
+                this.wsUrl = 'wss://quantedgesharemarketanalyzer-production.up.railway.app/ws';
+            } else {
+                // Custom domain or other host — try same origin
+                const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                this.wsUrl = `${wsProto}//${window.location.host}/ws`;
+            }
         }
     }
 
