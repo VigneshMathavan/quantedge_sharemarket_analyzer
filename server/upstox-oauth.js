@@ -72,8 +72,11 @@ export function mountUpstoxOAuth(app, provider, getBaseUrl) {
                 };
             } catch (e) { return { valid: false, reason: 'malformed' }; }
         };
-        const access = decode(env.UPSTOX_ACCESS_TOKEN || '');
-        const extended = decode(env.UPSTOX_EXTENDED_TOKEN || '');
+        // Read from process.env FIRST (Railway/Vercel inject vars this way).
+        // Fall back to .env file (local dev). This makes the status endpoint
+        // accurate in cloud deployments where no .env file exists on disk.
+        const access = decode(process.env.UPSTOX_ACCESS_TOKEN || env.UPSTOX_ACCESS_TOKEN || '');
+        const extended = decode(process.env.UPSTOX_EXTENDED_TOKEN || env.UPSTOX_EXTENDED_TOKEN || '');
         // Combined status — valid if EITHER token works for market data
         const valid = (access?.valid) || (extended?.valid);
         const primary = extended?.valid ? extended : access;
