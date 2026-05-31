@@ -5,8 +5,27 @@ const SETTINGS = JSON.parse(localStorage.getItem('qe2_settings') || '{}');
 // stale values when the user changes capital via the modal.
 let _capSaved = null;
 try { _capSaved = JSON.parse(localStorage.getItem('qe-capital') || 'null'); } catch (_) {}
+
+// ────────────────────────────────────────────────────────────────
+// Backend URL auto-detection:
+//   • Local dev (localhost / 127.0.0.1)  → http://localhost:4300
+//   • Vercel / any deployed origin       → '' (use relative paths,
+//     Vercel rewrites /api/* to Railway behind the scenes)
+//   • WebSocket: relative paths don't work cross-origin on Vercel,
+//     so deployed origin uses the SAME origin as the page (Vercel
+//     proxies /ws too). Local dev hits the backend WS directly.
+// ────────────────────────────────────────────────────────────────
+function detectBackend() {
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '';
+    return isLocal ? 'http://localhost:4300' : '';   // '' = relative
+}
+// ALWAYS use auto-detect — ignore any stale localStorage backend (would
+// pin a deployed user to localhost). User can still override via settings.
+const detectedBackend = detectBackend();
+
 const cfg = {
-    backend: SETTINGS.backend || 'http://localhost:4300',
+    backend: detectedBackend,
     capital: (_capSaved?.capital) || SETTINGS.capital || 200000,
     risk: (_capSaved?.risk) || SETTINGS.risk || 5,
     minAiScore: SETTINGS.minAiScore || 70,    // signals must clear this AI approval score

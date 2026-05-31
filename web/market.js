@@ -13,8 +13,15 @@ class MarketClient {
     }
 
     setBackend(url) {
-        this.backend = url.replace(/\/$/, '');
-        this.wsUrl = this.backend.replace(/^http/, 'ws') + '/ws';
+        this.backend = (url || '').replace(/\/$/, '');
+        if (this.backend) {
+            // Local dev — explicit backend URL
+            this.wsUrl = this.backend.replace(/^http/, 'ws') + '/ws';
+        } else {
+            // Production (Vercel) — use same origin as page (Vercel rewrites /ws to Railway)
+            const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            this.wsUrl = `${wsProto}//${window.location.host}/ws`;
+        }
     }
 
     on(event, cb) { this.listeners[event]?.push(cb); }
