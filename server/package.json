@@ -1,7 +1,7 @@
 {
   "name": "quantedge-server",
   "version": "0.1.0",
-  "description": "QuantEdge backend — Breeze Connect proxy + WebSocket relay",
+  "description": "QuantEdge backend — broker proxy + signal engine + WebSocket relay",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -9,9 +9,11 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "ws": "^8.18.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "fast-xml-parser": "^5.8.0",
+    "otpauth": "^9.3.4",
+    "ws": "^8.18.0"
   }
 }

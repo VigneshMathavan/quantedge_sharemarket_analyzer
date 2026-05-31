@@ -1,29 +1,80 @@
-# Node
+# ============================================================
+#  QuantEdge .gitignore — DO NOT EVER PUSH TOKENS OR LARGE DATA
+# ============================================================
+
+# ---- Node ----
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json.bak
 
-# Env files (NEVER commit broker credentials)
+# ---- ENV / SECRETS / TOKENS (CRITICAL — never commit) ----
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
 server/.env
+server/.env.local
+server/.env.production
+**/.env
+**/.env.*
+*.env
 
-# OS
+# Belt-and-braces secret patterns
+*token*.txt
+*secret*.txt
+*credentials*.json
+*.pem
+*.key
+
+# ---- Large historical data (~300 MB, fetched at runtime) ----
+data/historical/
+data/*.json
+data/model-archive/
+data/backtest_*.json
+data/_backtest_*.json
+data/calibration.json
+data/week-trades.json
+data/training_NIFTY.json
+data/_summary.json
+data/strategy-weights.json
+data/win-prob-model.json
+
+# But DO commit the trained ML models so deploys work out-of-the-box
+!data/path-forecaster-model.json
+!data/path-forecaster-rf.json
+!data/path-forecaster-model-5yr.json
+
+# ---- OS junk ----
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Editor
+# ---- Editor / IDE ----
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
+*~
 
-# Logs
+# ---- Logs ----
 *.log
 logs/
+nohup.out
 
-# Build artifacts
+# ---- Build artifacts ----
 dist/
 build/
+out/
+
+# ---- Test / debug files ----
+server/debug-*.js
+*.test.local.js
+test-output/
+
+# ---- Personal / archive ----
+archive/
+data/archive/

@@ -5,11 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuantEdge — Options Terminal</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2300D09C'/%3E%3Cpath d='M6 22l5-7 4 3 6-10 5 8' stroke='%230B0B1A' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<!-- ============ CAPITAL ONBOARDING MODAL (first visit) ============ -->
+<div class="capital-modal-backdrop" id="capital-modal" style="display:none">
+    <div class="capital-modal-card">
+        <div class="capital-modal-head">
+            <div class="capital-brand">
+                <div class="brand-icon">
+                    <svg width="22" height="22" viewBox="0 0 32 32" fill="none"><path d="M6 22l5-7 4 3 6-10 5 8" stroke="#0B0B1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <div class="capital-title">Welcome to QuantEdge</div>
+                    <div class="capital-sub">Tell me your trading capital — I'll show only the trades that fit.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="capital-modal-body">
+            <label class="cm-label">Trading Capital (₹)</label>
+            <div class="cm-cap-input">
+                <span class="cm-rupee">₹</span>
+                <input type="number" id="cm-capital" placeholder="e.g. 200000" value="200000" min="10000" step="1000" />
+            </div>
+            <div class="cm-quick-amounts">
+                <button class="cm-quick" data-amt="50000">₹50k</button>
+                <button class="cm-quick" data-amt="100000">₹1L</button>
+                <button class="cm-quick" data-amt="200000">₹2L</button>
+                <button class="cm-quick" data-amt="500000">₹5L</button>
+                <button class="cm-quick" data-amt="1000000">₹10L</button>
+            </div>
+
+            <label class="cm-label" style="margin-top:18px">Risk per Trade</label>
+            <div class="cm-risk-row">
+                <input type="range" id="cm-risk" class="risk-slider" min="5" max="30" step="5" value="5">
+                <span class="cm-risk-val" id="cm-risk-val">5%</span>
+            </div>
+            <div class="cm-risk-ticks">
+                <span>Conservative 5</span><span>10</span><span>15</span><span>Aggressive 20</span><span>25</span><span>Max 30%</span>
+            </div>
+
+            <div class="cm-preview" id="cm-preview">
+                Max loss per trade: <b>₹4,000</b> · Engine will only show trades within this risk budget
+            </div>
+        </div>
+
+        <div class="capital-modal-foot">
+            <button class="cm-start" id="cm-start">Start Trading →</button>
+            <div class="cm-note">You can change this anytime in the sidebar · Stored locally on your device</div>
+        </div>
+    </div>
+</div>
 
 <!-- ============ TOPBAR ============ -->
 <header class="topbar">
@@ -29,9 +81,19 @@
             <span class="conn-dot"></span><span id="conn-label">Connecting</span>
         </div>
         <div class="clock" id="clock">--:--:--</div>
-        <button class="icon-btn" id="settings-btn" title="Settings">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <div class="event-pill" id="event-pill" title="Next macro event">
+            <span class="event-icon">⚡</span>
+            <span class="event-text" id="event-text">—</span>
+        </div>
+        <button class="upstox-pill" id="upstox-pill" title="Click to refresh Upstox token" onclick="window.refreshUpstoxToken()">
+            <span class="up-dot"></span>
+            <span id="upstox-status">UP —</span>
         </button>
+        <button class="icon-btn theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <!-- Settings gear removed — edit capital / risk via sidebar Account section -->>
         <div class="avatar">VK</div>
     </div>
 </header>
@@ -46,6 +108,7 @@
             <div class="symbol-tabs" id="symbol-tabs">
                 <button class="sym-tab active" data-symbol="NIFTY">NIFTY 50</button>
                 <button class="sym-tab" data-symbol="SENSEX">SENSEX</button>
+                <button class="sym-tab" data-symbol="BANKNIFTY">BANKNIFTY</button>
                 <button class="sym-tab" data-symbol="FINNIFTY">FINNIFTY</button>
             </div>
         </div>
@@ -54,34 +117,78 @@
             <div class="side-label">Timeframe</div>
             <div class="tf-tabs" id="tf-tabs">
                 <button class="tf-tab" data-tf="1minute">1m</button>
-                <button class="tf-tab active" data-tf="5minute">5m</button>
+                <button class="tf-tab active" data-tf="3minute">3m</button>
+                <button class="tf-tab" data-tf="5minute">5m</button>
+                <button class="tf-tab" data-tf="15minute">15m</button>
                 <button class="tf-tab" data-tf="30minute">30m</button>
+                <button class="tf-tab" data-tf="60minute">1H</button>
                 <button class="tf-tab" data-tf="1day">1D</button>
+            </div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">Indicators <span class="ind-toggle-all" id="ind-all">all on</span></div>
+            <div class="indicator-grid" id="indicator-grid">
+                <label class="ind-chip"><input type="checkbox" data-ind="ema20" checked><span>EMA 20</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="ema50" checked><span>EMA 50</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="vwap" checked><span>VWAP</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="supertrend"><span>Supertrend</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="bollinger"><span>Bollinger</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="rsi"><span>RSI</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="atr"><span>ATR</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="cpr" checked><span>CPR</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="sr" checked><span>S/R Zones</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="oiwalls" checked><span>OI Walls</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="patterns" checked><span>Patterns</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="forecast" checked><span>AI Forecast</span></label>
             </div>
         </div>
 
         <div class="side-section">
             <div class="side-label">Market Pulse</div>
             <div id="market-pulse" class="pulse-list">
-                <div class="pulse-row"><span>India VIX</span><span class="mono" id="pulse-vix">--</span></div>
-                <div class="pulse-row"><span>PCR</span><span class="mono" id="pulse-pcr">--</span></div>
-                <div class="pulse-row"><span>Adv / Dec</span><span class="mono" id="pulse-advdec">--</span></div>
-                <div class="pulse-row"><span>FII Flow</span><span class="mono" id="pulse-fii">--</span></div>
+                <div class="pulse-row"><span>India VIX</span><span class="mono" id="pulse-vix">13.42</span></div>
+                <div class="pulse-row"><span>PCR</span><span class="mono" id="pulse-pcr">0.92</span></div>
+                <div class="pulse-row"><span>Adv / Dec</span><span class="mono" id="pulse-advdec">1248 / 952</span></div>
+                <div class="pulse-row"><span>FII Flow</span><span class="mono" id="pulse-fii">₹-1,247 Cr</span></div>
             </div>
         </div>
 
         <div class="side-section">
-            <div class="side-label">Account</div>
-            <div class="account-row"><span>Capital</span><span class="mono" id="acct-capital">₹5,00,000</span></div>
-            <div class="account-row"><span>Risk / Trade</span>
-                <select id="acct-risk" class="mini-select">
-                    <option value="1">1%</option>
-                    <option value="2" selected>2%</option>
-                    <option value="3">3%</option>
-                </select>
+            <div class="side-label">Account <span class="side-label-action" id="acct-edit-btn">✎ Edit</span></div>
+            <div class="account-row clickable" id="acct-capital-row"><span>Capital</span><span class="mono" id="acct-capital">₹2,00,000</span></div>
+            <div class="account-row risk-row">
+                <span>Risk / Trade</span>
+                <span class="mono" id="acct-risk-display">5%</span>
             </div>
+            <div class="risk-slider-wrap">
+                <input type="range" id="acct-risk-slider" class="risk-slider" min="5" max="30" step="5" value="5">
+                <div class="risk-slider-ticks">
+                    <span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30%</span>
+                </div>
+            </div>
+            <!-- Compatibility shim so existing JS that reads #acct-risk keeps working -->
+            <input type="hidden" id="acct-risk" value="5">
+            <div class="account-row"><span>Max Loss / Trade</span><span class="mono" id="acct-max-loss">₹10,000</span></div>
             <div class="account-row"><span>Today P&amp;L</span><span class="mono" id="acct-pnl">₹0</span></div>
             <div class="account-row"><span>Trades Left</span><span class="mono" id="acct-trades-left">5 / 5</span></div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">Top Movers (NSE Live)</div>
+            <div id="top-movers" class="movers-list">
+                <div class="movers-empty">Loading…</div>
+            </div>
+        </div>
+
+        <div class="side-section">
+            <div class="side-label">
+                <span>News Pulse</span>
+                <span class="news-sentiment-chip" id="news-sentiment">—</span>
+            </div>
+            <div class="news-list" id="news-list">
+                <div class="news-empty">Loading headlines…</div>
+            </div>
         </div>
 
         <div class="side-section logs-section">
@@ -95,8 +202,8 @@
         <div class="main-head">
             <div class="main-head-left">
                 <span class="main-symbol" id="main-symbol">NIFTY 50</span>
-                <span class="main-price" id="main-price">--</span>
-                <span class="main-change" id="main-change">--</span>
+                <span class="main-price loading-shimmer" id="main-price">…</span>
+                <span class="main-change loading-shimmer" id="main-change">…</span>
             </div>
             <div class="main-head-right">
                 <div class="indicator-toggles">
@@ -150,24 +257,178 @@
             <span class="sp-mode" id="sp-mode">--</span>
         </div>
 
+        <!-- PRIORITY: Signal card (when fires) + Trade Monitor (when in trade) -->
+        <div id="trade-monitor">
+            <!-- active trade monitor with exit warnings injected here -->
+        </div>
+
         <div id="signal-card-wrap">
             <!-- signal card injected here -->
         </div>
 
-        <div class="sp-section">
-            <div class="sp-section-title">Trade Checklist</div>
-            <div id="trade-checklist" class="checklist-box"></div>
+        <!-- Compact Multi-TF strip -->
+        <div class="sp-section sp-compact">
+            <div class="sp-section-title">
+                <span>Multi-TF Scan</span>
+                <span class="multitf-agg" id="multitf-agg">—</span>
+            </div>
+            <div class="multitf-grid" id="multitf-grid">
+                <div class="multitf-empty">Scanning…</div>
+            </div>
         </div>
 
-        <div class="sp-section">
-            <div class="sp-section-title">Recent Signals</div>
-            <div id="recent-signals" class="recent-list"></div>
+        <!-- Best Strike Now — always visible, capital-aware -->
+        <div class="sp-section sp-compact" id="best-strike-section">
+            <div class="sp-section-title">
+                <span>🎯 Best Strike Now</span>
+                <span class="bs-budget-mini" id="bs-budget-mini">—</span>
+            </div>
+            <div id="best-strike-now">
+                <div class="bs-empty">Loading...</div>
+            </div>
         </div>
+
+        <!-- Insights accordion (Forecast / Pattern / CPR) — collapsed by default to clean view -->
+        <div class="sp-section sp-compact insights-wrap">
+            <div class="insights-tabs" id="insights-tabs">
+                <button class="insights-tab active" data-tab="forecast">🧠 Forecast</button>
+                <button class="insights-tab" data-tab="pattern">📊 Pattern</button>
+                <button class="insights-tab" data-tab="cpr">📍 CPR</button>
+            </div>
+            <div class="insights-body">
+                <div class="insights-panel active" data-tab="forecast"><div id="forecast-preview"></div></div>
+                <div class="insights-panel" data-tab="pattern"><div id="pattern-panel"></div></div>
+                <div class="insights-panel" data-tab="cpr"><div id="cpr-panel"></div></div>
+            </div>
+        </div>
+
+        <div class="sp-section sp-compact">
+            <div class="sp-section-title">
+                <span>Possible Signals</span>
+                <span class="possible-hint">DO NOT BUY — wait for Active</span>
+            </div>
+            <div class="possible-list" id="possible-list">
+                <div class="possible-empty">Watching for setups…</div>
+            </div>
+        </div>
+
+        <!-- Collapsible secondary sections — kept tidy by default -->
+        <details class="sp-collapse">
+            <summary>📋 AI Rationale <span class="ai-model-chip" id="ai-model-chip">OFFLINE</span></summary>
+            <div class="ai-rationale" id="ai-rationale">
+                <div class="ai-empty">Rationale appears when the engine evaluates a setup.</div>
+            </div>
+        </details>
+
+        <details class="sp-collapse">
+            <summary>✓ Trade Checklist</summary>
+            <div id="trade-checklist" class="checklist-box"></div>
+        </details>
+
+        <details class="sp-collapse">
+            <summary>📜 Recent Signals</summary>
+            <div id="recent-signals" class="recent-list"></div>
+        </details>
+
+        <details class="sp-collapse">
+            <summary>📊 This Week's Trades <span class="week-label" id="history-week-label">—</span></summary>
+            <div class="history-stats" id="history-stats">
+                <div class="hist-stat"><span>TRADES</span><b id="hist-count">0</b></div>
+                <div class="hist-stat"><span>WIN RATE</span><b id="hist-wr">—</b></div>
+                <div class="hist-stat"><span>NET P&L</span><b id="hist-pnl">₹0</b></div>
+                <div class="hist-stat"><span>PF</span><b id="hist-pf">—</b></div>
+            </div>
+            <div class="history-list" id="history-list">
+                <div class="history-empty">No trades yet this week.</div>
+            </div>
+            <button class="ghost-btn history-reset" id="history-reset" title="Clear this week's history">↻ Reset Week</button>
+        </details>
     </aside>
 </div>
 
 <!-- Toast container -->
 <div class="toast-container" id="toast-container"></div>
+
+<!-- AI Forecast Explainer Modal -->
+<div class="modal-backdrop" id="fc-explainer" style="display:none">
+    <div class="modal modal-wide">
+        <div class="modal-head">
+            <h3>🧠 How the AI Forecast Works</h3>
+            <button class="modal-close" id="fc-explainer-close">✕</button>
+        </div>
+        <div class="modal-body fc-ex-body">
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">1</div>
+                <div class="fc-ex-text">
+                    <h4>10 years of market memory</h4>
+                    <p>The AI was trained on <b>132,648 historical entries</b> across NIFTY, SENSEX, BANKNIFTY, FINNIFTY (2016–2026). For every entry, it saw exactly what happened next — Target hit, Stop hit, or just chopped sideways.</p>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">2</div>
+                <div class="fc-ex-text">
+                    <h4>It reads 10 signals from the chart</h4>
+                    <p>Right now it's looking at <b>RSI, EMA20 slope, EMA50 slope, EMA-distance, ATR expansion, candle body strength, range %, last-3-candle direction, time-of-day, and trend alignment</b> — same way a pro trader scans a chart.</p>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">3</div>
+                <div class="fc-ex-text">
+                    <h4>50 decision trees vote</h4>
+                    <p>A Random Forest of 50 independent decision trees — each looks at a random slice of features and casts a vote: "given these conditions, what % of similar setups hit Target first vs Stop first?" The average of all 50 trees becomes the forecast.</p>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">4</div>
+                <div class="fc-ex-text">
+                    <h4>You see the cone on the chart</h4>
+                    <div class="fc-legend">
+                        <div class="fc-leg-row"><span class="fc-swatch up"></span><b>Green line</b> = where price could reach if AI's favorable scenario plays out (Expected MFE %)</div>
+                        <div class="fc-leg-row"><span class="fc-swatch down"></span><b>Red line</b> = worst-case if adverse scenario plays out (Expected MAE %)</div>
+                        <div class="fc-leg-row"><span class="fc-swatch center"></span><b>Blue/green/red center line</b> = AI's best guess for actual path. Colored by verdict.</div>
+                        <div class="fc-leg-row"><span class="fc-swatch tgt"></span><b>Dashed "AI T" line</b> = projected target price (horizontal)</div>
+                        <div class="fc-leg-row"><span class="fc-swatch stp"></span><b>Dashed "AI S" line</b> = projected stop price (horizontal)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">5</div>
+                <div class="fc-ex-text">
+                    <h4>Reading the verdict</h4>
+                    <div class="fc-verdict-list">
+                        <div><span class="fc-verdict-pill fav">FAVORABLE</span> Target probability is meaningfully higher than Stop probability — AI thinks the move plays through.</div>
+                        <div><span class="fc-verdict-pill unfav">UNFAVORABLE</span> Stop probability dominates — AI thinks this entry will get whipsawed.</div>
+                        <div><span class="fc-verdict-pill chop">CHOP</span> AI expects sideways chop — neither side hits in the lookahead window.</div>
+                        <div><span class="fc-verdict-pill neu">NEUTRAL</span> Probabilities are too close to call — no edge.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">6</div>
+                <div class="fc-ex-text">
+                    <h4>Confidence is honest about uncertainty</h4>
+                    <p>The <b>Confidence %</b> measures how spread the probabilities are. If P(T1)=40% / P(SL)=40% / P(Timeout)=20%, the model is basically guessing → low confidence. If P(T1)=70% / P(SL)=20% / P(Timeout)=10%, it's high-conviction → high confidence.</p>
+                    <p class="fc-ex-note">Validation AUC: <b>0.54</b> on held-out data — meaningfully better than coin-flip (0.50). Still not a crystal ball — markets are noisy.</p>
+                </div>
+            </div>
+
+            <div class="fc-ex-step">
+                <div class="fc-ex-num">7</div>
+                <div class="fc-ex-text">
+                    <h4>The forecast refreshes every 5 seconds</h4>
+                    <p>As new candles form, the model re-scores. The cone on your chart redraws live. Below ~70 confidence, treat it as informational — let the multi-strategy + approval engine + path forecaster ALL agree before trusting.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
 
 <!-- Settings modal -->
 <div class="modal-backdrop" id="settings-modal" style="display:none">
@@ -179,11 +440,17 @@
         <div class="modal-body">
             <div class="form-row">
                 <label>Account Capital (₹)</label>
-                <input type="number" id="set-capital" value="500000" step="50000">
+                <input type="number" id="set-capital" value="200000" step="10000" min="10000">
             </div>
             <div class="form-row">
                 <label>Risk per Trade (%)</label>
-                <input type="number" id="set-risk" value="2" step="0.5" min="0.5" max="5">
+                <input type="number" id="set-risk" value="5" step="5" min="5" max="30">
+                <div class="form-hint">5%, 10%, 15%, 20%, 25%, or 30%</div>
+            </div>
+            <div class="form-row">
+                <label>Min AI Score to Show Signal</label>
+                <input type="number" id="set-min-score" value="70" step="5" min="50" max="95">
+                <div class="form-hint">Only signals with AI approval ≥ this score will fire</div>
             </div>
             <div class="form-row">
                 <label>Max Trades / Day</label>

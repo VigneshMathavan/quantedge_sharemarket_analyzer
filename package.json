@@ -1,0 +1,21 @@
+{
+  "name": "quantedge",
+  "version": "1.0.0",
+  "description": "AI-powered options trading intelligence for NIFTY / SENSEX / BANKNIFTY / FINNIFTY",
+  "private": true,
+  "scripts": {
+    "start": "cd server && node index.js",
+    "install:server": "cd server && npm install",
+    "postinstall": "npm run install:server",
+    "fetch:history": "cd server && node fetch-everything.js",
+    "train:rf": "cd server && node path-forecaster/train-rf.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VigneshMathavan/quantedge_sharemarket_analyzer.git"
+  },
+  "license": "Proprietary"
+}
