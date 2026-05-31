@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE_WITH_RAILWAY_URL.up.railway.app/api/:path*"
+      "destination": "https://quantedgesharemarketanalyzer-production.up.railway.app/api/:path*"
     },
     {
       "source": "/ws",
-      "destination": "https://REPLACE_WITH_RAILWAY_URL.up.railway.app/ws"
+      "destination": "https://quantedgesharemarketanalyzer-production.up.railway.app/ws"
     }
   ],
   "headers": [
