@@ -2079,11 +2079,15 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions) {
         if (forecast) why += ` · AI ${fcVerdict.toLowerCase()} (P(T1) ${forecast.pT1}%)`;
     }
 
+    // Stash the signal on window so the onclick handler reads it by reference
+    // (inline JSON-in-onclick breaks on quotes inside nested objects).
+    window._pendingSig = sig;
+    window._pendingApproval = approval;
     const enterBtn = approval?.decision === 'REJECT'
-        ? `<button class="btn-enter-trade rejected" onclick="if(confirm('AI flagged this trade as REJECT (score ${score}). Override?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">⛔ Override · Enter Anyway</button>`
+        ? `<button class="btn-enter-trade rejected" onclick="window.enterTradeFromCard('REJECT')">⛔ Override · Enter Anyway</button>`
         : approval?.decision === 'WATCHLIST'
-        ? `<button class="btn-enter-trade watchlist" onclick="if(confirm('WATCHLIST · score ${score}. Enter anyway?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">⚠ Watchlist · Enter</button>`
-        : `<button class="btn-enter-trade" onclick="window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">▶ Enter Trade</button>`;
+        ? `<button class="btn-enter-trade watchlist" onclick="window.enterTradeFromCard('WATCHLIST')">⚠ Watchlist · Enter</button>`
+        : `<button class="btn-enter-trade" onclick="window.enterTradeFromCard('APPROVE')">▶ Enter Trade</button>`;
 
     wrap.innerHTML = `
         <div class="signal-card-clean ${cls}">
@@ -2145,6 +2149,24 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions) {
         </div>
     `;
 }
+
+// Click handler for the signal-card Enter Trade button.
+// Reads sig from window._pendingSig (set by renderActionableSignal)
+// to avoid inline-JSON quote-escaping bugs.
+window.enterTradeFromCard = function(decision) {
+    const sig = window._pendingSig;
+    const approval = window._pendingApproval;
+    if (!sig) {
+        toast('Signal data missing — refresh the page', 'error');
+        return;
+    }
+    if (decision === 'REJECT') {
+        if (!confirm(`AI flagged this trade as REJECT (score ${approval?.finalScore || '?'}/100).\n\nOverride and enter anyway?`)) return;
+    } else if (decision === 'WATCHLIST') {
+        if (!confirm(`WATCHLIST setup · score ${approval?.finalScore || '?'}/100.\n\nEnter the trade anyway?`)) return;
+    }
+    window.enterTrade(sig);
+};
 
 window.enterTrade = async function(sig) {
     try {
