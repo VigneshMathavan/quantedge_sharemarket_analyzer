@@ -22,10 +22,11 @@ const OUT_DIR = path.join(__dirname, '..', 'data', 'historical');
 if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const SYMBOL_KEYS = {
-    NIFTY:     'NSE_INDEX|Nifty 50',
-    SENSEX:    'BSE_INDEX|SENSEX',
-    BANKNIFTY: 'NSE_INDEX|Nifty Bank',
-    FINNIFTY:  'NSE_INDEX|Nifty Fin Service'
+    NIFTY:      'NSE_INDEX|Nifty 50',
+    SENSEX:     'BSE_INDEX|SENSEX',
+    BANKNIFTY:  'NSE_INDEX|Nifty Bank',
+    FINNIFTY:   'NSE_INDEX|Nifty Fin Service',
+    NATURALGAS: 'MCX_FO|NATURALGAS'
 };
 
 // Native Upstox endpoints — what they support

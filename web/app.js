@@ -39,7 +39,7 @@ if (cfg.risk < 5) cfg.risk = 5;
 if (cfg.risk > 30) cfg.risk = 30;
 cfg.risk = Math.round(cfg.risk / 5) * 5;
 
-const SYMBOLS = ['NIFTY', 'SENSEX', 'BANKNIFTY', 'FINNIFTY'];
+const SYMBOLS = ['NIFTY', 'SENSEX', 'BANKNIFTY', 'FINNIFTY', 'NATURALGAS'];
 const SYMBOL_NAMES = { NIFTY: 'NIFTY 50', SENSEX: 'SENSEX', FINNIFTY: 'FINNIFTY' };
 
 const STATE = {
@@ -443,17 +443,21 @@ function initChart() {
     //   • Center drift line — solid blue/green/red showing expected direction
     //   • Horizontal price lines for T1 (spot target) and SL (spot stop)
     // ============================================================
+    const fcLineCommon = {
+        lastValueVisible: false, priceLineVisible: false,
+        crosshairMarkerVisible: false, pointMarkersVisible: false   // ← kill dots
+    };
     STATE.forecastUpperSeries = STATE.chart.addLineSeries({
         color: 'rgba(0, 208, 156, 0.55)', lineWidth: 1, lineStyle: 1,
-        title: 'Forecast Upper', lastValueVisible: false, priceLineVisible: false
+        title: 'Forecast Upper', ...fcLineCommon
     });
     STATE.forecastLowerSeries = STATE.chart.addLineSeries({
         color: 'rgba(235, 91, 60, 0.55)', lineWidth: 1, lineStyle: 1,
-        title: 'Forecast Lower', lastValueVisible: false, priceLineVisible: false
+        title: 'Forecast Lower', ...fcLineCommon
     });
     STATE.forecastCenterSeries = STATE.chart.addLineSeries({
         color: 'rgba(77, 125, 255, 0.85)', lineWidth: 2, lineStyle: 0,
-        title: 'AI Forecast Drift', lastValueVisible: false, priceLineVisible: false
+        title: 'AI Forecast Drift', ...fcLineCommon
     });
     STATE.forecastConeArea = STATE.chart.addAreaSeries({
         topColor: 'rgba(0, 208, 156, 0.18)',
@@ -605,18 +609,25 @@ async function loadOptionChain() {
             renderChainExpiry(expiries);
         }
         renderOptionChain();
-        // Show freshness label in chain header so user can see how stale
+        // Freshness label in a DEDICATED span — no more appending counter.
         const metaEl = document.getElementById('chain-meta');
-        if (metaEl && !metaEl.dataset.tsBound) {
-            metaEl.dataset.tsBound = '1';
-            setInterval(() => {
-                const el = document.getElementById('chain-meta');
-                if (!el || !STATE.chainFetchedAt) return;
-                const sec = Math.round((Date.now() - STATE.chainFetchedAt) / 1000);
-                const freshness = sec < 6 ? `🟢 ${sec}s` : sec < 30 ? `🟡 ${sec}s` : `🔴 ${sec}s`;
-                const txt = el.textContent.replace(/\s*·\s*\d+s.*$/, '');
-                el.textContent = `${txt} · ${freshness}`;
-            }, 1000);
+        if (metaEl) {
+            let freshEl = document.getElementById('chain-fresh');
+            if (!freshEl) {
+                freshEl = document.createElement('span');
+                freshEl.id = 'chain-fresh';
+                freshEl.style.marginLeft = '8px';
+                metaEl.appendChild(freshEl);
+            }
+            if (!metaEl.dataset.tsBound) {
+                metaEl.dataset.tsBound = '1';
+                setInterval(() => {
+                    const el = document.getElementById('chain-fresh');
+                    if (!el || !STATE.chainFetchedAt) return;
+                    const sec = Math.round((Date.now() - STATE.chainFetchedAt) / 1000);
+                    el.textContent = sec < 6 ? `🟢 ${sec}s` : sec < 30 ? `🟡 ${sec}s` : `🔴 ${sec}s`;
+                }, 1000);
+            }
         }
     } catch (e) {
         addLog('ERROR', `Chain load failed: ${e.message}`);
@@ -649,6 +660,22 @@ setTimeout(() => {
     // Re-evaluate market-hours every minute (handles open/close transition)
     setInterval(scheduleChainRefresh, 60000);
 }, 4000);
+
+// Options Chain collapsible header
+setTimeout(() => {
+    const head = document.getElementById('chain-head');
+    const panel = document.getElementById('chain-panel');
+    if (!head || !panel) return;
+    // Restore preferred state from localStorage
+    if (localStorage.getItem('qe-chain-collapsed') === '1') {
+        panel.classList.add('collapsed');
+    }
+    head.addEventListener('click', (e) => {
+        if (e.target.tagName === 'SELECT') return;
+        panel.classList.toggle('collapsed');
+        localStorage.setItem('qe-chain-collapsed', panel.classList.contains('collapsed') ? '1' : '0');
+    });
+}, 200);
 
 function renderChainExpiry(expiries) {
     const sel = document.getElementById('chain-expiry');

@@ -33,7 +33,10 @@ const SYMBOL_MAP = {
     SENSEX:    { key: 'BSE_INDEX|SENSEX',             lot_size: 20,  strike_gap: 100, exchange: 'BSE_FO' },
     BANKNIFTY: { key: 'NSE_INDEX|Nifty Bank',         lot_size: 30,  strike_gap: 100, exchange: 'NSE_FO' },
     FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 60,  strike_gap: 50,  exchange: 'NSE_FO' },
-    BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 30,  strike_gap: 100, exchange: 'BSE_FO' }
+    BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 30,  strike_gap: 100, exchange: 'BSE_FO' },
+    // MCX commodity — Natural Gas (front-month continuous)
+    // Lot size 1250 mmBtu · strike gap 5 INR · NATURALGAS contract
+    NATURALGAS: { key: 'MCX_FO|NATURALGAS',           lot_size: 1250, strike_gap: 5, exchange: 'MCX_FO', isCommodity: true }
 };
 
 // Mask a token for logging — show only first/last 4 chars

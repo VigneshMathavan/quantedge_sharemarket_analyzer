@@ -111,6 +111,7 @@
                 <button class="sym-tab" data-symbol="SENSEX">SENSEX</button>
                 <button class="sym-tab" data-symbol="BANKNIFTY">BANKNIFTY</button>
                 <button class="sym-tab" data-symbol="FINNIFTY">FINNIFTY</button>
+                <button class="sym-tab" data-symbol="NATURALGAS">NAT.GAS</button>
             </div>
         </div>
 
@@ -221,12 +222,14 @@
             <div id="chart-overlay-popups"></div>
         </div>
 
-        <!-- Options Chain -->
-        <div class="chain-panel">
-            <div class="chain-head">
-                <span class="chain-title">Options Chain</span>
+        <!-- Options Chain (collapsible) -->
+        <div class="chain-panel" id="chain-panel">
+            <div class="chain-head" id="chain-head">
+                <span class="chain-title">
+                    <span class="chain-toggle-arrow">▾</span> Options Chain
+                </span>
                 <div class="chain-controls">
-                    <select id="chain-expiry" class="mini-select"></select>
+                    <select id="chain-expiry" class="mini-select" onclick="event.stopPropagation()"></select>
                     <span class="chain-meta" id="chain-meta">PCR: -- • Max Pain: --</span>
                 </div>
             </div>

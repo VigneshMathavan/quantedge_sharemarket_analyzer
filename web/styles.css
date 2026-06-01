@@ -2028,6 +2028,20 @@ body.hide-cpr      #cpr-panel { display: none; }
 .eb-section.warn b { color: var(--neon-amber, #ffb245); }
 .eb-section div { color: var(--text-1); padding: 1px 0; }
 
+/* Options Chain — collapsible header */
+.chain-head { cursor: pointer; user-select: none; transition: background 0.15s ease; }
+.chain-head:hover { background: var(--bg-2); }
+.chain-toggle-arrow {
+    display: inline-block;
+    font-size: 11px;
+    transition: transform 0.2s ease;
+    color: var(--text-3);
+    margin-right: 4px;
+}
+.chain-panel.collapsed .chain-toggle-arrow { transform: rotate(-90deg); }
+.chain-panel.collapsed .chain-table-wrap { display: none; }
+.chain-panel.collapsed .chain-table { display: none; }
+
 /* God Mode topbar badge */
 .god-mode-pill {
     font-family: var(--font-mono);
