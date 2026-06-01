@@ -26,8 +26,15 @@ const SYMBOL_KEYS = {
     SENSEX:     'BSE_INDEX|SENSEX',
     BANKNIFTY:  'NSE_INDEX|Nifty Bank',
     FINNIFTY:   'NSE_INDEX|Nifty Fin Service',
-    NATURALGAS: 'MCX_FO|NATURALGAS'
+    // NATURALGAS is fetched via stitch-across-contracts logic below (no single key)
+    NATURALGAS: '__STITCHED__'
 };
+
+// MCX Natural Gas: each monthly contract has its own key. Listed contracts give
+// us the next ~6 months. For deep history we'd need expired contracts, which
+// Upstox doesn't expose — best-effort: pull what's available + roll forward.
+import { NATURALGAS_CONTRACTS } from './upstox.js';
+const NATGAS_CONTRACTS = NATURALGAS_CONTRACTS;
 
 // Native Upstox endpoints — what they support
 const NATIVE_JOBS = [
@@ -44,8 +51,9 @@ const TOKEN = process.env.UPSTOX_EXTENDED_TOKEN || process.env.UPSTOX_ACCESS_TOK
 if (!TOKEN) { console.error('No token available'); process.exit(1); }
 const provider = new UpstoxProvider({ extendedToken: process.env.UPSTOX_EXTENDED_TOKEN, accessToken: process.env.UPSTOX_ACCESS_TOKEN, apiKey: process.env.UPSTOX_API_KEY });
 
-async function fetchWindow(symbol, job, from, to) {
-    const enc = encodeURIComponent(SYMBOL_KEYS[symbol]);
+async function fetchWindow(symbol, job, from, to, overrideKey = null) {
+    const key = overrideKey || SYMBOL_KEYS[symbol];
+    const enc = encodeURIComponent(key);
     const p = `/v3/historical-candle/${enc}/${job.unit}/${job.interval}/${fmt(to)}/${fmt(from)}`;
     try {
         const j = await provider._get(p, {});
@@ -56,6 +64,46 @@ async function fetchWindow(symbol, job, from, to) {
             volume: parseInt(c[5] || 0, 10)
         }));
     } catch (e) { return []; }
+}
+
+// NATURALGAS: stitch all listed monthly contracts into a continuous series.
+// Each contract has a numeric key like MCX_FO|504265. We fetch each contract's
+// full history and merge by timestamp (newer contracts overwrite as they roll).
+async function fetchNaturalGasStitched(job) {
+    const outPath = path.join(OUT_DIR, `NATURALGAS_${job.tf}.json`);
+    if (fs.existsSync(outPath)) {
+        const existing = JSON.parse(fs.readFileSync(outPath, 'utf-8'));
+        if (existing.length > 100) {
+            console.log(`  ✓ NATURALGAS ${job.tf}: ${existing.length.toLocaleString()} (cached, stitched)`);
+            return existing.length;
+        }
+    }
+    const all = new Map();
+    let totalContractWindows = 0;
+    let okWindows = 0;
+    for (const contract of NATGAS_CONTRACTS) {
+        // Fetch from "listing date" (Upstox lists ~5 months pre-expiry) to expiry.
+        const expDate = new Date(contract.expiry);
+        const listingApprox = new Date(expDate.getTime() - 180 * 86400000);
+        const startDate = listingApprox > new Date(job.since) ? listingApprox : new Date(job.since);
+        let cur = new Date(startDate);
+        const endDate = new Date(Math.min(expDate.getTime(), Date.now()));
+        while (cur < endDate) {
+            totalContractWindows++;
+            const winEnd = new Date(Math.min(cur.getTime() + job.windowDays * 86400000, endDate.getTime()));
+            const candles = await fetchWindow('NATURALGAS', job, cur, winEnd, contract.key);
+            if (candles.length) okWindows++;
+            for (const c of candles) all.set(c.time, c);
+            process.stdout.write(`  NATURALGAS ${job.tf} [${contract.symbol}]: ${candles.length?'✓':'✗'} (total=${all.size.toLocaleString()})    \r`);
+            await sleep(180);
+            cur = new Date(winEnd.getTime() + 86400000);
+        }
+    }
+    const arr = Array.from(all.values()).sort((a, b) => a.time - b.time);
+    fs.writeFileSync(outPath, JSON.stringify(arr));
+    const sizeMb = (fs.statSync(outPath).size / 1024 / 1024).toFixed(2);
+    console.log(`\n  ✓ NATURALGAS ${job.tf}: ${arr.length.toLocaleString()} candles · ${okWindows}/${totalContractWindows} windows · ${sizeMb}MB`);
+    return arr.length;
 }
 
 async function fetchSymbolTf(symbol, job) {
@@ -145,7 +193,11 @@ async function main() {
         console.log(`\n━━━ ${sym} ━━━`);
         stats[sym] = {};
         for (const job of NATIVE_JOBS) {
-            stats[sym][job.tf] = await fetchSymbolTf(sym, job);
+            if (sym === 'NATURALGAS') {
+                stats[sym][job.tf] = await fetchNaturalGasStitched(job);
+            } else {
+                stats[sym][job.tf] = await fetchSymbolTf(sym, job);
+            }
         }
     }
     await synthesizeResampled();

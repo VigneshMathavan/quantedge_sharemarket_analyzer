@@ -34,10 +34,46 @@ const SYMBOL_MAP = {
     BANKNIFTY: { key: 'NSE_INDEX|Nifty Bank',         lot_size: 30,  strike_gap: 100, exchange: 'NSE_FO' },
     FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 60,  strike_gap: 50,  exchange: 'NSE_FO' },
     BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 30,  strike_gap: 100, exchange: 'BSE_FO' },
-    // MCX commodity — Natural Gas (front-month continuous)
-    // Lot size 1250 mmBtu · strike gap 5 INR · NATURALGAS contract
-    NATURALGAS: { key: 'MCX_FO|NATURALGAS',           lot_size: 1250, strike_gap: 5, exchange: 'MCX_FO', isCommodity: true }
+    // MCX commodity — Natural Gas (front-month futures, auto-rolled)
+    // Each monthly contract has its own numeric token. Front-month is computed
+    // dynamically from NATURALGAS_CONTRACTS based on today's date.
+    // Lot size 1250 mmBtu · strike gap 5 INR
+    NATURALGAS: { key: 'MCX_FO|504265', lot_size: 1250, strike_gap: 5, exchange: 'MCX_FO', isCommodity: true,
+        rollover: true, contractList: 'NATURALGAS_CONTRACTS' }
 };
+
+// NATURALGAS monthly futures — sourced from Upstox MCX instrument master 2026-06-02.
+// Each MCX commodity contract has its own numeric instrument key; there's no
+// continuous ticker. Front-month rolls ~3 days before expiry.
+export const NATURALGAS_CONTRACTS = [
+    { key: 'MCX_FO|504265', symbol: 'NATURALGAS_FUT_25_JUN_26', expiry: '2026-06-25', lotSize: 1250 },
+    { key: 'MCX_FO|538685', symbol: 'NATURALGAS_FUT_28_JUL_26', expiry: '2026-07-28', lotSize: 1250 },
+    { key: 'MCX_FO|561496', symbol: 'NATURALGAS_FUT_26_AUG_26', expiry: '2026-08-26', lotSize: 1250 },
+    { key: 'MCX_FO|568245', symbol: 'NATURALGAS_FUT_25_SEP_26', expiry: '2026-09-25', lotSize: 1250 },
+    { key: 'MCX_FO|570750', symbol: 'NATURALGAS_FUT_27_OCT_26', expiry: '2026-10-27', lotSize: 1250 },
+    { key: 'MCX_FO|574319', symbol: 'NATURALGAS_FUT_24_NOV_26', expiry: '2026-11-24', lotSize: 1250 }
+];
+
+// Pick the active front-month contract for a given date (rolls 3 trading days
+// before expiry). Falls back to the last listed contract if all expired.
+export function getNaturalGasFrontMonth(asOf = new Date()) {
+    const ROLL_BUFFER_DAYS = 3;
+    const ms = asOf.getTime();
+    for (const c of NATURALGAS_CONTRACTS) {
+        const exp = new Date(c.expiry + 'T23:59:59+05:30').getTime();
+        if (ms < exp - ROLL_BUFFER_DAYS * 86400000) return c;
+    }
+    return NATURALGAS_CONTRACTS[NATURALGAS_CONTRACTS.length - 1];
+}
+
+// Sync SYMBOL_MAP NATURALGAS key to the active front-month at boot time so live
+// quotes/historical hit the right contract.
+{
+    const front = getNaturalGasFrontMonth();
+    SYMBOL_MAP.NATURALGAS.key = front.key;
+    SYMBOL_MAP.NATURALGAS.activeSymbol = front.symbol;
+    SYMBOL_MAP.NATURALGAS.expiry = front.expiry;
+}
 
 // Mask a token for logging — show only first/last 4 chars
 function maskToken(tk) {
@@ -298,6 +334,11 @@ export class UpstoxProvider extends EventEmitter {
     async getOptionChain(symbol, expiry) {
         const meta = SYMBOL_MAP[symbol];
         if (!meta) throw new Error('Unknown symbol: ' + symbol);
+
+        // Commodities (NATURALGAS futures) have a different chain structure on
+        // MCX — strike grids per contract month. Skip the index-style chain
+        // path; the frontend hides chain UI for isCommodity symbols.
+        if (meta.isCommodity) return [];
 
         // First need to know expiry. If not given, get next expiry.
         let chosenExpiry = expiry;
