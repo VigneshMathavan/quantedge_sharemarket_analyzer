@@ -453,11 +453,17 @@ export class UpstoxProvider extends EventEmitter {
                         if (!ltp) continue;
                         const prev = this.lastQuote.get(sym) || {};
                         if (prev.ltp === ltp) continue;
-                        const prevClose = prev.close || row.cp || ltp;
-                        const change = ltp - prevClose;
-                        const updated = { ...prev, ltp, change, changePercent: prevClose ? change / prevClose * 100 : 0, time: Date.now() };
+                        // Use the previously fetched prev-day close (set by the full-quote
+                        // path every 6th poll). NEVER fall back to ltp itself — that
+                        // collapses change% to 0 and is what caused the topbar % flicker.
+                        // If prevClose is unknown, preserve the previous tick's change%
+                        // rather than emitting a fake 0.
+                        const prevClose = prev.close || row.cp || null;
+                        const change = prevClose ? (ltp - prevClose) : (prev.change ?? 0);
+                        const changePercent = prevClose ? (change / prevClose) * 100 : (prev.changePercent ?? 0);
+                        const updated = { ...prev, ltp, change, changePercent, time: Date.now() };
                         this.lastQuote.set(sym, updated);
-                        this.emit('tick', { symbol: sym, price: ltp, change, changePercent: updated.changePercent, time: updated.time });
+                        this.emit('tick', { symbol: sym, price: ltp, change, changePercent, time: updated.time });
                     }
                 }
             } catch (e) {

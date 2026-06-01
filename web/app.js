@@ -40,7 +40,13 @@ if (cfg.risk > 30) cfg.risk = 30;
 cfg.risk = Math.round(cfg.risk / 5) * 5;
 
 const SYMBOLS = ['NIFTY', 'SENSEX', 'BANKNIFTY', 'FINNIFTY', 'NATURALGAS'];
-const SYMBOL_NAMES = { NIFTY: 'NIFTY 50', SENSEX: 'SENSEX', FINNIFTY: 'FINNIFTY' };
+const SYMBOL_NAMES = {
+    NIFTY: 'NIFTY 50',
+    SENSEX: 'SENSEX',
+    BANKNIFTY: 'BANK NIFTY',
+    FINNIFTY: 'FIN NIFTY',
+    NATURALGAS: 'NATURAL GAS'
+};
 
 const STATE = {
     selectedSymbol: 'NIFTY',
@@ -257,6 +263,7 @@ function setupChartHead() {
     document.getElementById('refresh-btn').addEventListener('click', () => {
         loadHistory();
         loadOptionChain();
+        refreshTopbarQuote(STATE.selectedSymbol);  // re-pull live LTP via HTTP
         addLog('INFO', 'Manual refresh');
     });
 }
@@ -890,7 +897,7 @@ function renderTickerStrip() {
 }
 
 function renderMainHead() {
-    document.getElementById('main-symbol').textContent = SYMBOL_NAMES[STATE.selectedSymbol];
+    document.getElementById('main-symbol').textContent = SYMBOL_NAMES[STATE.selectedSymbol] || STATE.selectedSymbol;
     const lastTick = STATE.lastPrices[STATE.selectedSymbol];
     if (lastTick) {
         document.getElementById('main-price').textContent = fmtPrice(lastTick.price);
@@ -898,7 +905,84 @@ function renderMainHead() {
         ch.textContent = fmtPct(lastTick.changePercent);
         ch.className = 'main-change ' + (lastTick.change >= 0 ? 'up' : 'dn');
     }
+    // Always pull a fresh HTTP quote in parallel — this guarantees the topbar
+    // matches the broker's current LTP even if the WebSocket is silent / stale.
+    refreshTopbarQuote(STATE.selectedSymbol);
 }
+
+// Fetch /api/quote/:symbol and update topbar + ticker strip. Cached briefly
+// to avoid stampedes when symbol switches rapidly.
+let _quoteFetchInFlight = {};
+async function refreshTopbarQuote(symbol) {
+    if (!symbol || _quoteFetchInFlight[symbol]) return;
+    _quoteFetchInFlight[symbol] = true;
+    try {
+        const r = await fetch(STATE.market.backend + `/api/quote/${symbol}`);
+        if (!r.ok) return;
+        const q = await r.json();
+        if (!q || !q.ltp) return;
+        // Compute change% defensively — prefer broker-supplied, else derive
+        // from prev day close (q.close = previous-day close per upstox provider).
+        let pct = (typeof q.changePercent === 'number' && isFinite(q.changePercent)) ? q.changePercent : null;
+        let chg = (typeof q.change === 'number' && isFinite(q.change)) ? q.change : null;
+        if ((pct === null || pct === 0) && q.close && q.close !== q.ltp) {
+            chg = q.ltp - q.close;
+            pct = (chg / q.close) * 100;
+        }
+        const synthTick = {
+            symbol: q.symbol || symbol,
+            price: q.ltp,
+            change: chg ?? 0,
+            changePercent: pct ?? 0,
+            time: q.time || Date.now(),
+            close: q.close
+        };
+        // Merge into STATE — preserve as the last known good price
+        STATE.lastPrices[symbol] = synthTick;
+        // Update topbar if this is the currently-selected symbol
+        if (symbol === STATE.selectedSymbol) {
+            const mp = document.getElementById('main-price');
+            if (mp) {
+                mp.textContent = fmtPrice(synthTick.price);
+                mp.classList.remove('loading-shimmer');
+            }
+            const ch = document.getElementById('main-change');
+            if (ch) {
+                ch.textContent = fmtPct(synthTick.changePercent);
+                ch.className = 'main-change ' + (synthTick.change >= 0 ? 'up' : 'dn');
+                ch.classList.remove('loading-shimmer');
+            }
+        }
+        // Update ticker strip row too
+        const el = document.querySelector(`#ticker-strip .tk[data-sym="${symbol}"]`);
+        if (el) {
+            const p = el.querySelector('.tk-price');
+            const c = el.querySelector('.tk-chg');
+            if (p) p.textContent = fmtPrice(synthTick.price);
+            if (c) {
+                c.textContent = fmtPct(synthTick.changePercent);
+                c.className = 'tk-chg ' + (synthTick.change >= 0 ? 'up' : 'dn');
+            }
+        }
+    } catch (e) { /* silent — WS will catch up */ }
+    finally { _quoteFetchInFlight[symbol] = false; }
+}
+
+// Heartbeat: every 5s, if the selected symbol's last tick is older than 5s,
+// pull a fresh HTTP quote. Catches WebSocket dropouts and slow ticks.
+setInterval(() => {
+    const sym = STATE.selectedSymbol;
+    if (!sym) return;
+    const last = STATE.lastPrices[sym];
+    const ageMs = last?.time ? (Date.now() - last.time) : Infinity;
+    if (ageMs > 5000) refreshTopbarQuote(sym);
+}, 5000);
+
+// Also pull fresh quotes for all visible ticker-strip symbols every 15s
+// so the strip stays accurate even when no individual symbol is selected.
+setInterval(() => {
+    for (const s of (typeof SYMBOLS !== 'undefined' ? SYMBOLS : [])) refreshTopbarQuote(s);
+}, 15000);
 
 function renderOptionChain() {
     const body = document.getElementById('chain-body');
