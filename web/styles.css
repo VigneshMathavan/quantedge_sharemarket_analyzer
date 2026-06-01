@@ -2042,6 +2042,25 @@ body.hide-cpr      #cpr-panel { display: none; }
 .chain-panel.collapsed .chain-table-wrap { display: none; }
 .chain-panel.collapsed .chain-table { display: none; }
 
+/* When chain is collapsed, surrender the panel's reserved row in the parent
+   grid and let the chart claim the freed space. The chain shrinks to a slim
+   28px strip — click it again to expand. */
+.main-panel:has(.chain-panel.collapsed) {
+    grid-template-rows: 48px 1fr 28px;
+}
+.chain-panel.collapsed {
+    grid-template-rows: 28px 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-1);
+}
+.chain-panel.collapsed .chain-head {
+    height: 28px;
+    padding: 0 18px;
+    border-bottom: none;
+}
+.chain-panel.collapsed .chain-controls .chain-meta { display: none; }
+.chain-panel.collapsed .chain-controls #chain-expiry { display: none; }
+
 /* God Mode topbar badge */
 .god-mode-pill {
     font-family: var(--font-mono);

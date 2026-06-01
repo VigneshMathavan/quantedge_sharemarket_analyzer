@@ -674,6 +674,18 @@ setTimeout(() => {
         if (e.target.tagName === 'SELECT') return;
         panel.classList.toggle('collapsed');
         localStorage.setItem('qe-chain-collapsed', panel.classList.contains('collapsed') ? '1' : '0');
+        // Force chart to claim/release freed space immediately — the ResizeObserver
+        // catches this too, but firing window resize closes any race condition.
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new Event('resize'));
+            try {
+                const container = document.getElementById('chart-container');
+                if (STATE.chart && container) {
+                    STATE.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+                    STATE.chart.timeScale().fitContent();
+                }
+            } catch (err) {}
+        });
     });
 }, 200);
 
