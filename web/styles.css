@@ -2403,7 +2403,9 @@ html, body { overflow-x: hidden; }
 }
 .possible-side.call { background: var(--neon-green); color: var(--bg-base); }
 .possible-side.put  { background: var(--neon-red); color: #fff; }
-.possible-side.none { background: var(--bg-3); color: var(--text-3); }
+.possible-side.none { display: none; }
+/* When side hasn't committed yet, the badge is omitted entirely — give body more room */
+.possible-row.no-side .possible-body { padding-left: 4px; }
 .possible-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .possible-name {
     color: var(--text-1); font-weight: 600;

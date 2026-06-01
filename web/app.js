@@ -2565,11 +2565,16 @@ function renderPossibleSignals(possibles) {
         return;
     }
     list.innerHTML = ranked.map(p => {
-        const side = p.side === 'BUY_CALL' ? 'call' : p.side === 'BUY_PUT' ? 'put' : 'none';
-        const sideLabel = p.side === 'BUY_CALL' ? 'CE' : p.side === 'BUY_PUT' ? 'PE' : '—';
+        const side = p.side === 'BUY_CALL' ? 'call' : p.side === 'BUY_PUT' ? 'put' : null;
+        const sideLabel = p.side === 'BUY_CALL' ? 'CE' : p.side === 'BUY_PUT' ? 'PE' : '';
         const proxClass = p.proximity >= 60 ? 'high' : p.proximity >= 45 ? 'medium' : 'low';
-        return `<div class="possible-row ${proxClass} ${side}">
-            <span class="possible-side ${side}">${sideLabel}</span>
+        // Hide the side badge entirely when direction isn't committed yet.
+        // The empty "—" was being read as a collapse toggle by users.
+        const sideBadge = side
+            ? `<span class="possible-side ${side}">${sideLabel}</span>`
+            : '';
+        return `<div class="possible-row ${proxClass} ${side || 'no-side'}">
+            ${sideBadge}
             <div class="possible-body">
                 <span class="possible-name">${p.name}</span>
                 <span class="possible-needs">${p.needs}</span>
