@@ -198,6 +198,10 @@ function setupSidebar() {
             document.querySelectorAll('#symbol-tabs .sym-tab').forEach(x => x.classList.remove('active'));
             b.classList.add('active');
             STATE.selectedSymbol = b.dataset.symbol;
+            // Clear all chart overlays from the previous symbol — otherwise
+            // NIFTY's S/R / OI walls / pattern markers / forecast lines
+            // stay drawn on top of SENSEX's chart at NIFTY price levels.
+            clearAllChartOverlays();
             loadHistory();
             loadOptionChain();
             renderMainHead();
@@ -456,6 +460,36 @@ function initChart() {
         lastValueVisible: false, priceLineVisible: false
     });
     STATE.forecastTargetLines = [];  // price lines for T1/SL
+
+    // ────────────────────────────────────────────────────────────────
+    // Wipes EVERY non-candle artifact off the chart:
+    //   • signal price lines (entry/SL/TP)
+    //   • S/R + OI wall overlay lines
+    //   • forecast target/stop horizontal lines
+    //   • forecast cone series (upper/lower/center/area)
+    //   • pattern markers
+    // Called when the user switches symbol so we don't see NIFTY's
+    // price labels lingering on SENSEX's chart.
+    // ────────────────────────────────────────────────────────────────
+    window.clearAllChartOverlays = function() {
+        if (!STATE.candleSeries) return;
+        const lineGroups = [STATE.signalLines, STATE.overlayLines, STATE.forecastTargetLines];
+        for (const grp of lineGroups) {
+            if (!grp) continue;
+            for (const l of grp) {
+                try { STATE.candleSeries.removePriceLine(l); } catch (_) {}
+            }
+            grp.length = 0;
+        }
+        // Clear the projection cone series
+        STATE.forecastUpperSeries?.setData([]);
+        STATE.forecastLowerSeries?.setData([]);
+        STATE.forecastCenterSeries?.setData([]);
+        STATE.forecastConeArea?.setData([]);
+        // Clear ALL markers (entry/exit + pattern arrows)
+        STATE.markers = [];
+        try { STATE.candleSeries.setMarkers([]); } catch (_) {}
+    };
 
     new ResizeObserver(() => {
         STATE.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
