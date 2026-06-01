@@ -28,11 +28,12 @@ import { StrategyV2Engine } from './v2-overrides.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
+// SEBI Nov 2024 revised lot sizes
 const SYMBOL_META = {
-    NIFTY:     { lot_size: 25, strike_gap: 50 },
-    SENSEX:    { lot_size: 10, strike_gap: 100 },
-    FINNIFTY:  { lot_size: 25, strike_gap: 50 },
-    BANKNIFTY: { lot_size: 15, strike_gap: 100 }
+    NIFTY:     { lot_size: 75, strike_gap: 50 },
+    SENSEX:    { lot_size: 20, strike_gap: 100 },
+    FINNIFTY:  { lot_size: 65, strike_gap: 50 },
+    BANKNIFTY: { lot_size: 30, strike_gap: 100 }
 };
 
 // ============================================================

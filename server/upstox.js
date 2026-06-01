@@ -28,11 +28,12 @@ const BASE_URL = 'https://api.upstox.com';
 
 // Symbol → Upstox instrument key + lot/strike-gap metadata
 const SYMBOL_MAP = {
-    NIFTY:     { key: 'NSE_INDEX|Nifty 50',           lot_size: 25,  strike_gap: 50,  exchange: 'NSE_FO' },
-    SENSEX:    { key: 'BSE_INDEX|SENSEX',             lot_size: 10,  strike_gap: 100, exchange: 'BSE_FO' },
-    BANKNIFTY: { key: 'NSE_INDEX|Nifty Bank',         lot_size: 15,  strike_gap: 100, exchange: 'NSE_FO' },
-    FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 25,  strike_gap: 50,  exchange: 'NSE_FO' },
-    BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 15,  strike_gap: 100, exchange: 'BSE_FO' }
+    // Lot sizes per SEBI revision effective Nov 2024 → current standard
+    NIFTY:     { key: 'NSE_INDEX|Nifty 50',           lot_size: 75,  strike_gap: 50,  exchange: 'NSE_FO' },
+    SENSEX:    { key: 'BSE_INDEX|SENSEX',             lot_size: 20,  strike_gap: 100, exchange: 'BSE_FO' },
+    BANKNIFTY: { key: 'NSE_INDEX|Nifty Bank',         lot_size: 30,  strike_gap: 100, exchange: 'NSE_FO' },
+    FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 65,  strike_gap: 50,  exchange: 'NSE_FO' },
+    BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 30,  strike_gap: 100, exchange: 'BSE_FO' }
 };
 
 // Mask a token for logging — show only first/last 4 chars

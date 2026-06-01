@@ -312,19 +312,23 @@
             </div>
         </div>
 
-        <!-- Collapsible secondary sections — kept tidy by default -->
-        <details class="sp-collapse">
-            <summary>📋 AI Rationale <span class="ai-model-chip" id="ai-model-chip">OFFLINE</span></summary>
+        <!-- Always-visible secondary sections (no longer collapsed) -->
+        <div class="sp-section sp-compact">
+            <div class="sp-section-title">
+                <span>📋 AI Rationale</span>
+                <span class="ai-model-chip" id="ai-model-chip">OFFLINE</span>
+            </div>
             <div class="ai-rationale" id="ai-rationale">
                 <div class="ai-empty">Rationale appears when the engine evaluates a setup.</div>
             </div>
-        </details>
+        </div>
 
-        <details class="sp-collapse">
-            <summary>✓ Trade Checklist</summary>
+        <div class="sp-section sp-compact">
+            <div class="sp-section-title"><span>✓ Trade Checklist</span></div>
             <div id="trade-checklist" class="checklist-box"></div>
-        </details>
+        </div>
 
+        <!-- Recent Signals + Week History stay collapsed by default to save vertical space -->
         <details class="sp-collapse">
             <summary>📜 Recent Signals</summary>
             <div id="recent-signals" class="recent-list"></div>

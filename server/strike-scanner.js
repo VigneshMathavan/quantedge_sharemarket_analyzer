@@ -17,10 +17,11 @@ import { blackScholes, nextExpiryMs, daysToExpiry } from './greeks.js';
 import { pathForecaster } from './path-forecaster.js';
 
 const SYMBOL_META = {
-    NIFTY:     { strikeGap: 50,  lotSize: 25 },
-    BANKNIFTY: { strikeGap: 100, lotSize: 15 },
-    FINNIFTY:  { strikeGap: 50,  lotSize: 25 },
-    SENSEX:    { strikeGap: 100, lotSize: 10 }
+    // Lot sizes per SEBI revision effective Nov 2024 → current standard
+    NIFTY:     { strikeGap: 50,  lotSize: 75 },
+    BANKNIFTY: { strikeGap: 100, lotSize: 30 },
+    FINNIFTY:  { strikeGap: 50,  lotSize: 65 },
+    SENSEX:    { strikeGap: 100, lotSize: 20 }
 };
 
 function nearestStrike(spot, gap) { return Math.round(spot / gap) * gap; }
