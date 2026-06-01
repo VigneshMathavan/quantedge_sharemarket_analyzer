@@ -1954,6 +1954,67 @@ body.hide-cpr      #cpr-panel { display: none; }
 .scc-details[open] summary { color: var(--neon-blue, #4d7dff); }
 .scc-details-body { padding-top: 8px; }
 
+/* ============================================================
+   Expiry Day Elite block — institutional setup confirmation
+   ============================================================ */
+.elite-block {
+    margin: 6px 0 10px;
+    padding: 10px 12px;
+    border-radius: var(--r-tight);
+    font-family: var(--font-mono);
+    border-left: 4px solid var(--text-3);
+    background: var(--bg-2);
+}
+.elite-block.tier-elite {
+    border-left-color: #ffd700;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 165, 0, 0.04));
+    box-shadow: 0 0 14px rgba(255, 215, 0, 0.25);
+    animation: god-pulse 2s ease-in-out infinite;
+}
+.elite-block.tier-strong {
+    border-left-color: var(--neon-green);
+    background: linear-gradient(135deg, rgba(0,208,156,0.10), transparent);
+}
+.elite-block.tier-ok {
+    border-left-color: var(--neon-blue, #4d7dff);
+}
+.eb-head {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 7px;
+}
+.eb-icon { font-size: 16px; }
+.eb-tier {
+    font-weight: 800; font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--text-1);
+}
+.elite-block.tier-elite .eb-tier { color: #ffd700; }
+.eb-meta {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.03em;
+}
+.eb-section {
+    margin: 6px 0;
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    line-height: 1.5;
+}
+.eb-section.ok { background: rgba(0, 208, 156, 0.08); }
+.eb-section.warn { background: rgba(255, 178, 69, 0.08); }
+.eb-section b {
+    display: block;
+    font-size: 10px;
+    margin-bottom: 3px;
+    letter-spacing: 0.04em;
+}
+.eb-section.ok b { color: var(--neon-green); }
+.eb-section.warn b { color: var(--neon-amber, #ffb245); }
+.eb-section div { color: var(--text-1); padding: 1px 0; }
+
 /* God Mode topbar badge */
 .god-mode-pill {
     font-family: var(--font-mono);

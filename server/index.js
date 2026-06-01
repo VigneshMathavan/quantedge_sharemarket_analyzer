@@ -44,6 +44,7 @@ import { scanStrikes } from './strike-scanner.js';
 import { buildProfitPlaybook } from './profit-playbook.js';
 import { computeAllCPR, cprProximity } from './cpr.js';
 import { detectPatterns, estimateCandleProgress, scanAllCandles } from './pattern-detector.js';
+import { analyzeExpiryDay } from './expiry-elite.js';
 
 const orchestrator = new StrategyOrchestrator([
     orbStrategy,
@@ -418,10 +419,31 @@ app.post('/api/signals/confluence', async (req, res) => {
             ? `AI approval ${approval.finalScore} < ${minScore} threshold`
             : null;
 
+        // Expiry-day institutional analysis — only meaningful when DTE ≤ 1.5
+        let expiryAnalysis = null;
+        if (result.side !== 'NO_TRADE' && actionable) {
+            try {
+                let chainForExpiry = [];
+                try { chainForExpiry = await provider.getOptionChain(symbol); } catch (_) {}
+                expiryAnalysis = analyzeExpiryDay({
+                    symbol, side: result.side,
+                    spot: candles[candles.length - 1].close,
+                    chain: chainForExpiry,
+                    candles
+                });
+                // If ELITE tier, upgrade the actionable signal display
+                if (expiryAnalysis?.tier === 'ELITE' && actionable) {
+                    actionable.eliteExpiry = true;
+                    actionable.eliteConfirmations = expiryAnalysis.confirmations;
+                }
+            } catch (e) { console.error('[expiry-elite]', e); }
+        }
+
         res.json({
             symbol, ...result,
             actionable: passesGate ? actionable : null,
             forecast, approval, strikeOptions,
+            expiry: expiryAnalysis,
             suppressed: !passesGate,
             suppressedReason,
             minScoreUsed: minScore,

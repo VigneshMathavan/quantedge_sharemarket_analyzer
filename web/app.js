@@ -1948,7 +1948,7 @@ async function refreshAIRationale() {
 
         // Render the FULL actionable signal card if we have one
         if (data.actionable) {
-            renderActionableSignal(data.actionable, data.forecast, data.approval, data.strikeOptions);
+            renderActionableSignal(data.actionable, data.forecast, data.approval, data.strikeOptions, data.expiry);
         } else {
             // Only show idle if there's no live active trade
             if (!STATE.activeTrade) renderIdleSignal();
@@ -2061,12 +2061,32 @@ function renderStrikeOptions(opts, sig) {
     `;
 }
 
-function renderActionableSignal(sig, forecast, approval, strikeOptions) {
+function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) {
     const wrap = document.getElementById('signal-card-wrap');
     if (!wrap) return;
     const isCall = sig.side === 'BUY_CALL';
     const cls = isCall ? '' : 'put';
     const score = approval?.finalScore ?? sig.confluenceScore ?? 0;
+    // Expiry Day Elite block — show prominently if institutional tier
+    const eliteBlock = expiry?.isExpiry ? `
+        <div class="elite-block tier-${(expiry.tier || 'watch').toLowerCase()}">
+            <div class="eb-head">
+                <span class="eb-icon">${expiry.tier === 'ELITE' ? '⭐' : expiry.tier === 'STRONG' ? '✓' : '·'}</span>
+                <span class="eb-tier">${expiry.tier} EXPIRY SETUP</span>
+                <span class="eb-meta">DTE ${expiry.dte}d · Max Pain ${expiry.maxPain || '-'} · PCR ${expiry.pcr || '-'}</span>
+            </div>
+            ${expiry.confirmations?.length ? `
+                <div class="eb-section ok">
+                    <b>✓ Confirmations (${expiry.confirmations.length})</b>
+                    ${expiry.confirmations.map(c => `<div>• ${c}</div>`).join('')}
+                </div>` : ''}
+            ${expiry.warnings?.length ? `
+                <div class="eb-section warn">
+                    <b>⚠ Warnings (${expiry.warnings.length})</b>
+                    ${expiry.warnings.map(w => `<div>• ${w}</div>`).join('')}
+                </div>` : ''}
+        </div>
+    ` : '';
     const grade = approval?.grade || (score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : 'D');
     const scoreCls = score >= 70 ? 'good' : score >= 50 ? 'mid' : 'weak';
 
@@ -2097,6 +2117,9 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions) {
                 <span class="scc-strike">${sig.option.strike}<small>${sig.option.right}</small></span>
                 <span class="scc-score ${scoreCls}">${score}/100 · ${grade}</span>
             </div>
+
+            <!-- ── ELITE EXPIRY BLOCK (top priority if present) ── -->
+            ${eliteBlock}
 
             <!-- ── WHY (one-line rationale) ── -->
             ${why ? `<div class="scc-why">${why}</div>` : ''}
