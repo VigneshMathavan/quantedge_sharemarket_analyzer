@@ -2023,67 +2023,82 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions) {
     if (!wrap) return;
     const isCall = sig.side === 'BUY_CALL';
     const cls = isCall ? '' : 'put';
-    const stratList = (sig.firingStrategies || []).map(s => s.name).join(' · ');
-    const forecastHtml = forecast ? renderForecastBlock(forecast) : '';
-    const approvalHtml = approval ? renderApprovalBlock(approval) : '';
-    const strikeOptsHtml = strikeOptions ? renderStrikeOptions(strikeOptions, sig) : '';
-    // V2 spec: only display when score >= 80 AND not vetoed
-    const shouldGreyOut = approval && approval.decision !== 'APPROVE';
+    const score = approval?.finalScore ?? sig.confluenceScore ?? 0;
+    const grade = approval?.grade || (score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : 'D');
+    const scoreCls = score >= 70 ? 'good' : score >= 50 ? 'mid' : 'weak';
+
+    // One-sentence rationale — show WHY the engine fired this
+    const firing = (sig.firingStrategies || []).map(s => s.name);
+    const fcVerdict = forecast?.verdict || '—';
+    let why = '';
+    if (firing.length) {
+        why = `${firing.length} strateg${firing.length>1?'ies':'y'} firing (${firing.slice(0,2).join(' · ')}${firing.length>2?'…':''})`;
+        if (forecast) why += ` · AI ${fcVerdict.toLowerCase()} (P(T1) ${forecast.pT1}%)`;
+    }
+
+    const enterBtn = approval?.decision === 'REJECT'
+        ? `<button class="btn-enter-trade rejected" onclick="if(confirm('AI flagged this trade as REJECT (score ${score}). Override?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">⛔ Override · Enter Anyway</button>`
+        : approval?.decision === 'WATCHLIST'
+        ? `<button class="btn-enter-trade watchlist" onclick="if(confirm('WATCHLIST · score ${score}. Enter anyway?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">⚠ Watchlist · Enter</button>`
+        : `<button class="btn-enter-trade" onclick="window.enterTrade(${JSON.stringify(sig).replace(/"/g,'&quot;')})">▶ Enter Trade</button>`;
+
     wrap.innerHTML = `
-        <div class="signal-card ${cls} ${shouldGreyOut ? 'low-conviction' : ''}">
-            <div class="sc-head">
-                <span class="sc-badge">${isCall ? 'BUY CALL' : 'BUY PUT'}</span>
-                <span class="sc-tier ${sig.tier || 'C'}">${sig.tier || ''} · ${sig.confluenceScore}%</span>
-                ${approval ? `<span class="sc-grade ${approval.grade === 'A+' ? 'gAplus' : 'g'+approval.grade}">${approval.grade}</span>` : ''}
+        <div class="signal-card-clean ${cls}">
+            <!-- ── HEAD: side + strike + score ── -->
+            <div class="scc-head">
+                <span class="scc-side">${isCall ? '🟢 BUY CALL' : '🔴 BUY PUT'}</span>
+                <span class="scc-strike">${sig.option.strike}<small>${sig.option.right}</small></span>
+                <span class="scc-score ${scoreCls}">${score}/100 · ${grade}</span>
             </div>
-            ${approvalHtml}
-            <div class="sc-strike-block">
-                <div>
-                    <div class="sc-strike">${sig.option.strike}<span class="right">${sig.option.right}</span></div>
-                    <div style="font-size:11px; color:var(--text-3); margin-top:2px;">${sig.option.offsetLabel} @ ₹${sig.option.premium.toFixed(2)} · Δ ${sig.option.delta.toFixed(2)} · IV ${sig.option.iv ? sig.option.iv.toFixed(1) + '%' : '—'}</div>
+
+            <!-- ── WHY (one-line rationale) ── -->
+            ${why ? `<div class="scc-why">${why}</div>` : ''}
+
+            <!-- ── KEY NUMBERS (entry / SL / T1 / T2) ── -->
+            <div class="scc-prices">
+                <div class="scc-prc">
+                    <span>Entry</span>
+                    <b>₹${sig.option.premium.toFixed(2)}</b>
                 </div>
-                <span class="sc-conf-pill">${sig.strategyCount} ✓</span>
-                <div class="sc-rationale">${stratList || '—'}</div>
-            </div>
-            <div class="sc-levels">
-                <div class="sc-level">
-                    <span class="sc-level-label">Stop Loss</span>
-                    <span class="sc-level-value red">₹${sig.option.premiumSL.toFixed(2)}</span>
-                    <span class="sc-level-sub">spot ${sig.spot.stopLoss}</span>
+                <div class="scc-prc red">
+                    <span>Stop Loss</span>
+                    <b>₹${sig.option.premiumSL.toFixed(2)}</b>
                 </div>
-                <div class="sc-level">
-                    <span class="sc-level-label">Target 1</span>
-                    <span class="sc-level-value green">₹${sig.option.premiumT1.toFixed(2)}</span>
-                    <span class="sc-level-sub">spot ${sig.spot.target1}</span>
+                <div class="scc-prc green">
+                    <span>Target 1</span>
+                    <b>₹${sig.option.premiumT1.toFixed(2)}</b>
                 </div>
-                <div class="sc-level">
-                    <span class="sc-level-label">Target 2</span>
-                    <span class="sc-level-value green">₹${sig.option.premiumT2.toFixed(2)}</span>
-                    <span class="sc-level-sub">spot ${sig.spot.target2}</span>
-                </div>
-                <div class="sc-level">
-                    <span class="sc-level-label">R:R</span>
-                    <span class="sc-level-value">1 : ${sig.riskReward.toFixed(2)}</span>
-                    <span class="sc-level-sub">time-stop 15:15</span>
+                <div class="scc-prc green">
+                    <span>Target 2</span>
+                    <b>₹${sig.option.premiumT2.toFixed(2)}</b>
                 </div>
             </div>
-            <div class="sc-sizing">
-                <div class="sc-sizing-row"><span>Lots</span><b>${sig.sizing.lots}</b></div>
-                <div class="sc-sizing-row"><span>Qty</span><b>${sig.sizing.quantity}</b></div>
-                <div class="sc-sizing-row"><span>Capital</span><b>${fmtCurrency(sig.sizing.capitalRequired)}</b></div>
-                <div class="sc-sizing-row"><span>Max Loss</span><b class="text-red">${fmtCurrency(sig.sizing.maxLoss)}</b></div>
-                <div class="sc-sizing-row" style="grid-column:1/-1"><span>Risk</span><b>${sig.sizing.effectiveRiskPercent}% of account</b></div>
+
+            <!-- ── SIZING (lots + capital + max loss) ── -->
+            <div class="scc-sizing">
+                <span>Lots <b>${sig.sizing.lots} × ${sig.option.lotSize || (sig.sizing.quantity/sig.sizing.lots)}</b></span>
+                <span>Capital <b>${fmtCurrency(sig.sizing.capitalRequired)}</b></span>
+                <span>Max Loss <b class="red">${fmtCurrency(sig.sizing.maxLoss)}</b></span>
+                <span>R:R <b>1:${sig.riskReward.toFixed(1)}</b></span>
             </div>
-            ${forecastHtml}
-            ${strikeOptsHtml}
-            <div class="sc-actions">
-                ${approval && approval.decision === 'REJECT'
-                    ? `<button class="btn-enter-trade rejected" onclick="if(confirm('AI has REJECTED this trade. Override and enter anyway?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g, '&quot;')})">⛔ AI REJECTED — Override</button>`
-                    : approval && approval.decision === 'WATCHLIST'
-                    ? `<button class="btn-enter-trade watchlist" onclick="if(confirm('AI marked this trade WATCHLIST (score ${approval.finalScore}). Enter anyway?')) window.enterTrade(${JSON.stringify(sig).replace(/"/g, '&quot;')})">⚠ WATCHLIST — Enter Anyway</button>`
-                    : `<button class="btn-enter-trade" onclick="window.enterTrade(${JSON.stringify(sig).replace(/"/g, '&quot;')})">▶ Enter Trade (Tracker)</button>`
-                }
+
+            <!-- ── SPOT LEVELS (entry/SL/T1/T2 on the underlying) ── -->
+            <div class="scc-spot">
+                Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
+
+            <!-- ── ACTION BUTTON ── -->
+            <div class="scc-actions">${enterBtn}</div>
+
+            <!-- ── DETAILS (collapsed by default) ── -->
+            <details class="scc-details">
+                <summary>▸ Show AI analysis, greeks &amp; alternatives</summary>
+                <div class="scc-details-body">
+                    ${approval ? renderApprovalBlock(approval) : ''}
+                    ${forecast ? renderForecastBlock(forecast) : ''}
+                    ${strikeOptions ? renderStrikeOptions(strikeOptions, sig) : ''}
+                </div>
+            </details>
         </div>
     `;
 }

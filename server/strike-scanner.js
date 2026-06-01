@@ -56,33 +56,50 @@ export function scanStrikes({ symbol, side, spot, candles, accountSize, riskPerc
     const forecast = pathForecaster.forecast({ candles, side, tfMin: 5 }) || {};
 
     const candidates = [];
+    const expectedType = isCall ? 'CE' : 'PE';
     for (let i = 0; i < ladder.length; i++) {
         const offset = ladder[i];
         const strike = atm + offset * meta.strikeGap;
-        const greeks = blackScholes({ S: spot, K: strike, T, iv, right });
+
+        // ──────────────────────────────────────────────────────────────
+        //  REAL chain data first, BS fallback only when strike missing.
+        //  Upstox v2 returns ltp, iv, delta, theta, vega per row.
+        //  We compute gamma via BS using the REAL iv from the chain.
+        // ──────────────────────────────────────────────────────────────
+        const chainRow = chain.find(c => c.strike === strike && c.type === expectedType);
+        const useChain = !!(chainRow && chainRow.ltp > 0);
+        const realIv = useChain && chainRow.iv ? chainRow.iv / 100 : iv;
+        const bsForGamma = blackScholes({ S: spot, K: strike, T, iv: realIv, right });
+        const premium = useChain ? chainRow.ltp : bsForGamma.price;
+        const delta = useChain && chainRow.delta ? chainRow.delta : bsForGamma.delta;
+        const gamma = bsForGamma.gamma;  // not exposed by Upstox — always BS
+        const theta = useChain && chainRow.theta ? chainRow.theta : bsForGamma.theta;
+        const vega = useChain && chainRow.vega ? chainRow.vega : bsForGamma.vega;
+        const oi = chainRow?.oi || 0;
+        const dataSource = useChain ? 'broker' : 'computed';
 
         // Premium SL / T1 / T2 — tighter SL + 2.5x ATR T1 → RR ≥ 1:2 (V2 spec)
-        const slSpotDist = atrV * 1.0;        // tight stop
-        const t1SpotDist = atrV * 2.0;        // T1 = 2x risk
-        const t2SpotDist = atrV * 3.5;        // T2 = 3.5x risk
-        const slPrem = Math.max(0.5, greeks.price - slSpotDist * Math.abs(greeks.delta));
-        const t1Prem = greeks.price + t1SpotDist * Math.abs(greeks.delta);
-        const t2Prem = greeks.price + t2SpotDist * Math.abs(greeks.delta);
+        const slSpotDist = atrV * 1.0;
+        const t1SpotDist = atrV * 2.0;
+        const t2SpotDist = atrV * 3.5;
+        const slPrem = Math.max(0.5, premium - slSpotDist * Math.abs(delta));
+        const t1Prem = premium + t1SpotDist * Math.abs(delta);
+        const t2Prem = premium + t2SpotDist * Math.abs(delta);
 
         // Per-lot risk
-        const perLotRisk = (greeks.price - slPrem) * meta.lotSize;
-        const perLotCost = greeks.price * meta.lotSize;
+        const perLotRisk = (premium - slPrem) * meta.lotSize;
+        const perLotCost = premium * meta.lotSize;
         if (perLotRisk <= 0) continue;
         const lotsBudget = Math.floor(maxLoss / perLotRisk);
-        const lotsCapital = Math.floor(accountSize * 0.50 / perLotCost);  // max 50% of capital
-        const lots = Math.max(1, Math.min(lotsBudget, lotsCapital, 50));  // hard cap 50 lots
+        const lotsCapital = Math.floor(accountSize * 0.50 / perLotCost);
+        const lots = Math.max(1, Math.min(lotsBudget, lotsCapital, 50));
         const qty = lots * meta.lotSize;
         const capitalReq = perLotCost * lots;
         const maxLossActual = perLotRisk * lots;
-        const t1Reward = (t1Prem - greeks.price) * qty;
-        const t2Reward = (t2Prem - greeks.price) * qty;
+        const t1Reward = (t1Prem - premium) * qty;
+        const t2Reward = (t2Prem - premium) * qty;
 
-        // Score: P(T1) × reward / cost, bonus for ATM-ish liquidity
+        // Score: P(T1) × reward - P(SL) × max loss
         const pT1 = (forecast.pT1 || 50) / 100;
         const pSL = (forecast.pSL || 40) / 100;
         const expectedValue = pT1 * t1Reward - pSL * maxLossActual;
@@ -90,11 +107,6 @@ export function scanStrikes({ symbol, side, spot, candles, accountSize, riskPerc
         const liquidityBoost = offset === 0 ? 5 : Math.abs(offset) === 1 ? 3 : Math.abs(offset) === 2 ? -5 : -10;
         const score = evPerCapital + liquidityBoost;
 
-        // Match OI from chain if available
-        const chainRow = chain.find(c => c.strike === strike);
-        const oi = isCall ? (chainRow?.callOI || 1.5e6) : (chainRow?.putOI || 1.5e6);
-
-        // Budget fit
         const fitsBudget = capitalReq <= accountSize * 0.50 && maxLossActual <= maxLoss * 1.05;
 
         candidates.push({
@@ -102,15 +114,17 @@ export function scanStrikes({ symbol, side, spot, candles, accountSize, riskPerc
             offset,
             strike,
             right,
-            premium: greeks.price,
+            premium: parseFloat(premium.toFixed(2)),
             slPrem: parseFloat(slPrem.toFixed(2)),
             t1Prem: parseFloat(t1Prem.toFixed(2)),
             t2Prem: parseFloat(t2Prem.toFixed(2)),
-            delta: greeks.delta,
-            gamma: greeks.gamma,
-            theta: greeks.theta,
-            vega: greeks.vega,
+            delta: parseFloat(delta.toFixed(4)),
+            gamma: parseFloat(gamma.toFixed(6)),
+            theta: parseFloat(theta.toFixed(2)),
+            vega: parseFloat(vega.toFixed(2)),
+            iv: parseFloat((realIv * 100).toFixed(2)),
             oi,
+            dataSource,
             lots, quantity: qty,
             capitalRequired: Math.round(capitalReq),
             maxLossActual: Math.round(maxLossActual),

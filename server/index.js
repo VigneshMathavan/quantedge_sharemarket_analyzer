@@ -402,9 +402,18 @@ app.post('/api/signals/confluence', async (req, res) => {
         // renders it in Possibles, not as an actionable card.
         // Client can override via ?minScore=N query param.
         // ──────────────────────────────────────────────────────────────
-        // God Mode default = 0 (no gate). Pass ?minScore=X to gate.
+        // God Mode default = 0 (no score gate). Pass ?minScore=X to raise floor.
         const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 0, 10));
-        const passesGate = !approval || approval.finalScore >= minScore;
+        // Substance gate (always on, even in God Mode): need at least ONE of —
+        //   (a) approval.finalScore >= minScore (user threshold)
+        //   (b) ≥ 2 firing strategies (multi-confirmation)
+        //   (c) ≥ 1 strategy + AI Path Forecast verdict FAVORABLE
+        const firingCount = result.votes?.filter(v => v.fired).length || 0;
+        const fcFavorable = forecast?.verdict === 'FAVORABLE';
+        const substance = (approval?.finalScore || 0) >= minScore
+            || firingCount >= 2
+            || (firingCount >= 1 && fcFavorable);
+        const passesGate = !approval || substance;
         const suppressedReason = !passesGate
             ? `AI approval ${approval.finalScore} < ${minScore} threshold`
             : null;

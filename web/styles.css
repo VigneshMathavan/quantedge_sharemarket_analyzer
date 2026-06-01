@@ -1841,6 +1841,119 @@ body.hide-cpr      #cpr-panel { display: none; }
     color: var(--bg-1);
 }
 
+/* ============================================================
+   Clean Signal Card — minimal essentials, details collapsed
+   ============================================================ */
+.signal-card-clean {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--neon-green);
+    border-radius: var(--r-tight);
+    padding: 12px;
+    font-family: var(--font-mono);
+    margin: 6px 0;
+    box-shadow: 0 0 14px var(--neon-green-glow);
+    animation: signal-pulse-in 0.35s ease;
+}
+.signal-card-clean.put { border-left-color: var(--neon-red); box-shadow: 0 0 14px rgba(235,91,60,0.3); }
+
+.scc-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 7px; flex-wrap: wrap;
+}
+.scc-side { font-size: 13px; font-weight: 800; color: var(--text-1); letter-spacing: 0.04em; }
+.scc-strike { font-size: 18px; font-weight: 800; color: var(--text-1); }
+.scc-strike small { font-size: 11px; color: var(--text-3); margin-left: 2px; }
+.scc-score {
+    margin-left: auto;
+    font-size: 11px; font-weight: 800;
+    padding: 3px 9px; border-radius: 10px;
+    letter-spacing: 0.05em;
+}
+.scc-score.good { background: var(--neon-green); color: var(--bg-base); }
+.scc-score.mid  { background: var(--neon-amber, #ffb245); color: #000; }
+.scc-score.weak { background: var(--text-3); color: var(--bg-1); }
+
+.scc-why {
+    padding: 6px 9px;
+    background: rgba(77, 125, 255, 0.10);
+    border-left: 3px solid var(--neon-blue, #4d7dff);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text-1);
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.scc-prices {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+.scc-prc {
+    padding: 7px 8px;
+    background: var(--bg-2);
+    border-radius: 4px;
+    text-align: center;
+    display: flex; flex-direction: column;
+    border-top: 2px solid var(--line);
+}
+.scc-prc.red   { border-top-color: var(--neon-red); }
+.scc-prc.green { border-top-color: var(--neon-green); }
+.scc-prc span {
+    font-size: 9px;
+    color: var(--text-3);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+.scc-prc b { font-size: 14px; font-weight: 800; color: var(--text-1); }
+.scc-prc.red b   { color: var(--neon-red); }
+.scc-prc.green b { color: var(--neon-green); }
+
+.scc-sizing {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    padding: 7px 9px;
+    background: var(--bg-2);
+    border-radius: 3px;
+    font-size: 11px; color: var(--text-2);
+    margin-bottom: 7px;
+}
+.scc-sizing b { color: var(--text-1); font-weight: 700; }
+.scc-sizing b.red { color: var(--neon-red); }
+
+.scc-spot {
+    font-size: 10px;
+    color: var(--text-3);
+    text-align: center;
+    margin-bottom: 10px;
+    padding: 4px;
+    border: 1px dashed var(--line);
+    border-radius: 3px;
+}
+
+.scc-actions { margin-bottom: 8px; }
+.scc-actions .btn-enter-trade {
+    width: 100%;
+    padding: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.scc-details summary {
+    cursor: pointer;
+    font-size: 10px;
+    color: var(--text-3);
+    padding: 6px 0;
+    border-top: 1px dashed var(--line);
+    list-style: none;
+}
+.scc-details summary::-webkit-details-marker { display: none; }
+.scc-details summary:hover { color: var(--text-1); }
+.scc-details[open] summary { color: var(--neon-blue, #4d7dff); }
+.scc-details-body { padding-top: 8px; }
+
 /* God Mode topbar badge */
 .god-mode-pill {
     font-family: var(--font-mono);
