@@ -33,11 +33,9 @@ export class StrategyV2Engine {
             recentTrades: opts.recentTrades || []
         });
         this.opts = {
-            // God Mode: floor is OPEN by default. Server-side minScore gate
-            // (Layer 5) is the single source of truth for what user sees.
-            // Anything firing at any internal score now surfaces; the
-            // approval engine + path forecaster judge quality, not us here.
-            confLower: opts.confLower ?? 0,
+            // Mid floor — pre-filter true noise (< 20) but let server-side
+            // potential-pass logic decide what's actionable vs informational.
+            confLower: opts.confLower ?? 20,
             // Quality tagging
             qualityHigh: opts.qualityHigh ?? 65,
             qualityMedium: opts.qualityMedium ?? 50,

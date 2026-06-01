@@ -1874,6 +1874,19 @@ body.hide-cpr      #cpr-panel { display: none; }
 .scc-score.mid  { background: var(--neon-amber, #ffb245); color: #000; }
 .scc-score.weak { background: var(--text-3); color: var(--bg-1); }
 
+/* Potential tier pill — POTENTIAL / LIKELY / STRONG / ELITE */
+.scc-tier-pill {
+    font-size: 10px; font-weight: 800;
+    padding: 3px 8px; border-radius: 10px;
+    letter-spacing: 0.06em;
+    margin-left: 2px;
+}
+.scc-tier-pill.potential { background: var(--neon-blue, #4d7dff); color: #fff; }
+.scc-tier-pill.likely    { background: var(--neon-amber, #ffb245); color: #000; }
+.scc-tier-pill.strong    { background: var(--neon-green); color: var(--bg-base); box-shadow: 0 0 8px var(--neon-green-glow); }
+.scc-tier-pill.elite     { background: #ffd700; color: #000; animation: god-pulse 2s ease-in-out infinite; }
+.scc-tier-pill.weak      { background: var(--text-3); color: var(--bg-1); }
+
 .scc-why {
     padding: 6px 9px;
     background: rgba(77, 125, 255, 0.10);

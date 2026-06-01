@@ -2111,10 +2111,11 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
 
     wrap.innerHTML = `
         <div class="signal-card-clean ${cls}">
-            <!-- ── HEAD: side + strike + score ── -->
+            <!-- ── HEAD: side + strike + tier + score ── -->
             <div class="scc-head">
                 <span class="scc-side">${isCall ? '🟢 BUY CALL' : '🔴 BUY PUT'}</span>
                 <span class="scc-strike">${sig.option.strike}<small>${sig.option.right}</small></span>
+                <span class="scc-tier-pill ${tierCls}">${tier}</span>
                 <span class="scc-score ${scoreCls}">${score}/100 · ${grade}</span>
             </div>
 

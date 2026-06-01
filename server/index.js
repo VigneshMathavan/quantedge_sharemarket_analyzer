@@ -403,11 +403,43 @@ app.post('/api/signals/confluence', async (req, res) => {
         // renders it in Possibles, not as an actionable card.
         // Client can override via ?minScore=N query param.
         // ──────────────────────────────────────────────────────────────
-        // God Mode default = 0 (open). Pass ?minScore=X to raise the floor.
-        // Single source of truth — no hidden substance gates suppressing
-        // signals upstream. UI shows confidence, you decide.
-        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 0, 10));
-        const passesGate = !approval || (approval.finalScore || 0) >= minScore;
+        // ──────────────────────────────────────────────────────────────
+        //  POTENTIAL MOVE DETECTION (sweet spot — not strict, not noisy)
+        //
+        //  Surface a signal if ANY of these holds (= potential to move):
+        //    (a) approval score ≥ user minScore (default 35)
+        //    (b) 2+ strategies firing same direction (multi-confirm)
+        //    (c) 1+ strategy AND forecast verdict FAVORABLE
+        //    (d) 1+ strategy AND regime aligned w/ side (trending bull→CALL, etc.)
+        //    (e) confluence ≥ 30 (decent single-strategy fire)
+        //
+        //  Tier label assigned to actionable so UI shows POTENTIAL/LIKELY/STRONG/ELITE.
+        // ──────────────────────────────────────────────────────────────
+        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 35, 10));
+        const firingCount = result.votes?.filter(v => v.fired).length || 0;
+        const fcFavorable = forecast?.verdict === 'FAVORABLE';
+        const regime = result.regime?.regime || '';
+        const isCallSide = result.side === 'BUY_CALL';
+        const regimeAligned =
+            (isCallSide && (regime === 'trending_up' || regime === 'TRENDING_BULL' || regime === 'BREAKOUT')) ||
+            (!isCallSide && (regime === 'trending_down' || regime === 'TRENDING_BEAR' || regime === 'BREAKOUT'));
+
+        const finalScore = approval?.finalScore || 0;
+        const potentialPass =
+            finalScore >= minScore ||
+            firingCount >= 2 ||
+            (firingCount >= 1 && fcFavorable) ||
+            (firingCount >= 1 && regimeAligned) ||
+            (result.confluenceScore || 0) >= 30;
+
+        // Tier assignment for UI display
+        let potentialTier = 'WEAK';
+        if (firingCount >= 3 || finalScore >= 75) potentialTier = 'STRONG';
+        else if (firingCount >= 2 || (firingCount >= 1 && fcFavorable) || finalScore >= 55) potentialTier = 'LIKELY';
+        else if (firingCount >= 1 && (regimeAligned || (result.confluenceScore || 0) >= 30)) potentialTier = 'POTENTIAL';
+        if (actionable) actionable.potentialTier = potentialTier;
+
+        const passesGate = !approval || potentialPass;
         const suppressedReason = !passesGate
             ? `AI approval ${approval.finalScore} < ${minScore} threshold`
             : null;

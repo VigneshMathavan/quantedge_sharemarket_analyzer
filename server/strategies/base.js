@@ -123,9 +123,9 @@ export class StrategyOrchestrator {
         let confluenceScore = 0;
         let dominantVotes = [];
 
-        // God Mode: ANY directional lean fires (was 18). Approval engine
-        // + path forecaster judge quality downstream — we don't gate here.
-        const minScore = 1;
+        // Minimum directional weight — 10 keeps true zero-edge setups out
+        // while still letting single-strategy fires (~18 weight) through.
+        const minScore = 10;
         if (callScore > putScore && callScore >= minScore) { side = 'BUY_CALL'; confluenceScore = callScore; dominantVotes = callVotes; }
         else if (putScore > callScore && putScore >= minScore) { side = 'BUY_PUT'; confluenceScore = putScore; dominantVotes = putVotes; }
 
