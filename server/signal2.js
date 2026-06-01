@@ -348,8 +348,10 @@ export function sizePosition({ accountSize, riskPercent, premium, premiumSL, lot
 export class SignalEngineV2 {
     constructor(opts = {}) {
         this.opts = {
-            confidenceThreshold: opts.confidenceThreshold ?? 35,  // opportunistic — fire on any valid setup
-            cooldownSec: opts.cooldownSec ?? 90,
+            // God Mode default — fire on ANY valid setup, even low confidence.
+            // Server-side minScore gate (Layer 5) is the single source of truth.
+            confidenceThreshold: opts.confidenceThreshold ?? 0,
+            cooldownSec: opts.cooldownSec ?? 30,
             mlScorer: opts.mlScorer || null,  // optional Python ML proxy
             ivHistory: opts.ivHistory || {},  // { symbol: [iv, iv, iv, ...] }
             recentTrades: opts.recentTrades || []  // for risk-of-ruin adjuster

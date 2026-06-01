@@ -123,8 +123,9 @@ export class StrategyOrchestrator {
         let confluenceScore = 0;
         let dominantVotes = [];
 
-        // Opportunistic: even a single strategy firing (~18 weight) creates a signal
-        const minScore = 18;
+        // God Mode: ANY directional lean fires (was 18). Approval engine
+        // + path forecaster judge quality downstream — we don't gate here.
+        const minScore = 1;
         if (callScore > putScore && callScore >= minScore) { side = 'BUY_CALL'; confluenceScore = callScore; dominantVotes = callVotes; }
         else if (putScore > callScore && putScore >= minScore) { side = 'BUY_PUT'; confluenceScore = putScore; dominantVotes = putVotes; }
 
