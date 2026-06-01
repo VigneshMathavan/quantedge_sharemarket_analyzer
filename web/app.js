@@ -595,15 +595,58 @@ async function loadOptionChain() {
     try {
         const chain = await STATE.market.getOptionChain(STATE.selectedSymbol);
         STATE.chain = chain;
-        // pick nearest expiry
-        const expiries = [...new Set(chain.map(c => c.expiry).filter(Boolean))].sort();
-        STATE.chainExpiry = expiries[0] || null;
-        renderChainExpiry(expiries);
+        STATE.chainFetchedAt = Date.now();
+        // pick nearest expiry (only on first load or symbol switch)
+        if (!STATE.chainExpiry || !chain.some(c => c.expiry === STATE.chainExpiry)) {
+            const expiries = [...new Set(chain.map(c => c.expiry).filter(Boolean))].sort();
+            STATE.chainExpiry = expiries[0] || null;
+            renderChainExpiry(expiries);
+        }
         renderOptionChain();
+        // Show freshness label in chain header so user can see how stale
+        const metaEl = document.getElementById('chain-meta');
+        if (metaEl && !metaEl.dataset.tsBound) {
+            metaEl.dataset.tsBound = '1';
+            setInterval(() => {
+                const el = document.getElementById('chain-meta');
+                if (!el || !STATE.chainFetchedAt) return;
+                const sec = Math.round((Date.now() - STATE.chainFetchedAt) / 1000);
+                const freshness = sec < 6 ? `🟢 ${sec}s` : sec < 30 ? `🟡 ${sec}s` : `🔴 ${sec}s`;
+                const txt = el.textContent.replace(/\s*·\s*\d+s.*$/, '');
+                el.textContent = `${txt} · ${freshness}`;
+            }, 1000);
+        }
     } catch (e) {
         addLog('ERROR', `Chain load failed: ${e.message}`);
     }
 }
+
+// ────────────────────────────────────────────────────────────────
+// Auto-refresh option chain every 5s during market hours (9:15-15:30 IST).
+// Outside that window we refresh every 60s to save API calls.
+// ────────────────────────────────────────────────────────────────
+function isMarketHours() {
+    const now = new Date();
+    const utc = now.getTime() + (5 * 60 + 30) * 60000;
+    const ist = new Date(utc);
+    const day = ist.getUTCDay();
+    if (day === 0 || day === 6) return false;            // weekend
+    const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    return mins >= (9 * 60 + 15) && mins <= (15 * 60 + 30);
+}
+let _chainTickTimer = null;
+function scheduleChainRefresh() {
+    if (_chainTickTimer) clearInterval(_chainTickTimer);
+    _chainTickTimer = setInterval(() => {
+        if (!STATE.selectedSymbol) return;
+        loadOptionChain();
+    }, isMarketHours() ? 5000 : 60000);
+}
+setTimeout(() => {
+    scheduleChainRefresh();
+    // Re-evaluate market-hours every minute (handles open/close transition)
+    setInterval(scheduleChainRefresh, 60000);
+}, 4000);
 
 function renderChainExpiry(expiries) {
     const sel = document.getElementById('chain-expiry');
