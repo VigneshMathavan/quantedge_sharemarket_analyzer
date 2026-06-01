@@ -28,11 +28,11 @@ const BASE_URL = 'https://api.upstox.com';
 
 // Symbol → Upstox instrument key + lot/strike-gap metadata
 const SYMBOL_MAP = {
-    // Lot sizes per SEBI revision effective Nov 2024 → current standard
-    NIFTY:     { key: 'NSE_INDEX|Nifty 50',           lot_size: 75,  strike_gap: 50,  exchange: 'NSE_FO' },
+    // Current F&O lot sizes (2026) — per NSE/BSE official
+    NIFTY:     { key: 'NSE_INDEX|Nifty 50',           lot_size: 65,  strike_gap: 50,  exchange: 'NSE_FO' },
     SENSEX:    { key: 'BSE_INDEX|SENSEX',             lot_size: 20,  strike_gap: 100, exchange: 'BSE_FO' },
     BANKNIFTY: { key: 'NSE_INDEX|Nifty Bank',         lot_size: 30,  strike_gap: 100, exchange: 'NSE_FO' },
-    FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 65,  strike_gap: 50,  exchange: 'NSE_FO' },
+    FINNIFTY:  { key: 'NSE_INDEX|Nifty Fin Service',  lot_size: 60,  strike_gap: 50,  exchange: 'NSE_FO' },
     BANKEX:    { key: 'BSE_INDEX|BANKEX',             lot_size: 30,  strike_gap: 100, exchange: 'BSE_FO' }
 };
 
@@ -366,10 +366,9 @@ export class UpstoxProvider extends EventEmitter {
 
     _ensurePolling() {
         if (this._pollInterval) return;
-        // FAST tick loop: uses the lightweight v3 LTP endpoint (just last-price,
-        // no OHLC/depth) → ~30ms latency vs ~100ms for full quotes.
-        // Polls at 300ms = ~3 tick/sec when prices are moving.
-        // OHLC/change is patched in from last-known full quote.
+        // ULTRA-FAST tick loop: v3 LTP endpoint (~30ms response).
+        // 200ms cadence = ~5 ticks/sec when prices move. Stays well under
+        // Upstox rate limits. Full quotes refresh every 6th poll (~1.2s).
         let inFlight = false;
         let fullQuoteCounter = 0;
         this._pollInterval = setInterval(async () => {
@@ -425,7 +424,7 @@ export class UpstoxProvider extends EventEmitter {
             } finally {
                 inFlight = false;
             }
-        }, 300);
+        }, 200);
     }
 
     stop() {

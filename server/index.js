@@ -402,7 +402,8 @@ app.post('/api/signals/confluence', async (req, res) => {
         // renders it in Possibles, not as an actionable card.
         // Client can override via ?minScore=N query param.
         // ──────────────────────────────────────────────────────────────
-        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 70, 10));
+        // God Mode default = 0 (no gate). Pass ?minScore=X to gate.
+        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 0, 10));
         const passesGate = !approval || approval.finalScore >= minScore;
         const suppressedReason = !passesGate
             ? `AI approval ${approval.finalScore} < ${minScore} threshold`
@@ -538,7 +539,8 @@ app.get('/api/signals/multi-tf/:symbol', async (req, res) => {
                         });
                         approvalScore = approval.finalScore;
                         // Hide actionable below threshold (default 70)
-                        const tfMinScore = Math.max(0, parseInt(req.query.minScore || 70, 10));
+                        // God Mode: no per-TF gate. UI shows confidence so user picks.
+                        const tfMinScore = Math.max(0, parseInt(req.query.minScore || 0, 10));
                         if (approval.finalScore < tfMinScore) actionable = null;
                     } catch (e) {}
                 }

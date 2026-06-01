@@ -17,10 +17,10 @@ import { blackScholes, nextExpiryMs, daysToExpiry } from './greeks.js';
 import { pathForecaster } from './path-forecaster.js';
 
 const SYMBOL_META = {
-    // Lot sizes per SEBI revision effective Nov 2024 → current standard
-    NIFTY:     { strikeGap: 50,  lotSize: 75 },
+    // Current F&O lot sizes (2026) — per NSE/BSE official
+    NIFTY:     { strikeGap: 50,  lotSize: 65 },
     BANKNIFTY: { strikeGap: 100, lotSize: 30 },
-    FINNIFTY:  { strikeGap: 50,  lotSize: 65 },
+    FINNIFTY:  { strikeGap: 50,  lotSize: 60 },
     SENSEX:    { strikeGap: 100, lotSize: 20 }
 };
 

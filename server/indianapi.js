@@ -22,11 +22,11 @@ import { EventEmitter } from 'events';
 
 const INDIANAPI_BASE = 'https://stock.indianapi.in';
 
-// Lot sizes per SEBI revision effective Nov 2024 → current standard
+// Current F&O lot sizes (2026) — per NSE/BSE official
 const INDEX_META = {
-    NIFTY:     { name: 'NIFTY 50',          yahoo: '^NSEI',                lot_size: 75, strike_gap: 50,  basePrice: 24856.30 },
+    NIFTY:     { name: 'NIFTY 50',          yahoo: '^NSEI',                lot_size: 65, strike_gap: 50,  basePrice: 24856.30 },
     SENSEX:    { name: 'SENSEX',            yahoo: '^BSESN',               lot_size: 20, strike_gap: 100, basePrice: 81542.75 },
-    FINNIFTY:  { name: 'NIFTY FIN SERVICE', yahoo: 'NIFTY_FIN_SERVICE.NS', lot_size: 65, strike_gap: 50,  basePrice: 23180.60 },
+    FINNIFTY:  { name: 'NIFTY FIN SERVICE', yahoo: 'NIFTY_FIN_SERVICE.NS', lot_size: 60, strike_gap: 50,  basePrice: 23180.60 },
     BANKNIFTY: { name: 'NIFTY BANK',        yahoo: '^NSEBANK',             lot_size: 30, strike_gap: 100, basePrice: 51000.00 }
 };
 

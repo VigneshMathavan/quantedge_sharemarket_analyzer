@@ -1841,6 +1841,24 @@ body.hide-cpr      #cpr-panel { display: none; }
     color: var(--bg-1);
 }
 
+/* God Mode topbar badge */
+.god-mode-pill {
+    font-family: var(--font-mono);
+    font-size: 10px; font-weight: 800;
+    padding: 4px 9px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: #fff;
+    letter-spacing: 0.08em;
+    box-shadow: 0 0 12px rgba(255, 107, 53, 0.45);
+    animation: god-pulse 2.6s ease-in-out infinite;
+    cursor: help;
+}
+@keyframes god-pulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 107, 53, 0.35); }
+    50%      { box-shadow: 0 0 18px rgba(255, 107, 53, 0.75); }
+}
+
 /* Loading shimmer for boot-time placeholders (replaces ugly "--") */
 .loading-shimmer {
     background: linear-gradient(90deg, transparent 0%, var(--text-3) 50%, transparent 100%);

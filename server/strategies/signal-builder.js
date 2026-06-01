@@ -8,11 +8,11 @@
 
 import { atr } from '../signal2.js';
 
-// Lot sizes per SEBI revision effective Nov 2024 → current standard
+// Current F&O lot sizes (2026) — per NSE/BSE official
 const SYMBOL_META = {
-    NIFTY:     { lot_size: 75, strike_gap: 50 },
+    NIFTY:     { lot_size: 65, strike_gap: 50 },
     SENSEX:    { lot_size: 20, strike_gap: 100 },
-    FINNIFTY:  { lot_size: 65, strike_gap: 50 },
+    FINNIFTY:  { lot_size: 60, strike_gap: 50 },
     BANKNIFTY: { lot_size: 30, strike_gap: 100 }
 };
 
@@ -140,7 +140,7 @@ export function buildActionableSignal({ verdict, candles, chain, symbol, account
     const last = candles[candles.length - 1];
     const atrSer = atr(candles, 14);
     const atrV = atrSer.length ? atrSer[atrSer.length - 1] : (last.high - last.low);
-    const meta = SYMBOL_META[symbol] || { lot_size: 75, strike_gap: 50 };
+    const meta = SYMBOL_META[symbol] || { lot_size: 65, strike_gap: 50 };
 
     const strike = selectStrike({
         side: verdict.side, spot: last.close, chain,

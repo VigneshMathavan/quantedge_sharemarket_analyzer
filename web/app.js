@@ -28,7 +28,10 @@ const cfg = {
     backend: detectedBackend,
     capital: (_capSaved?.capital) || SETTINGS.capital || 200000,
     risk: (_capSaved?.risk) || SETTINGS.risk || 5,
-    minAiScore: SETTINGS.minAiScore || 70,    // signals must clear this AI approval score
+    // GOD MODE: signals fire as soon as engine sees any setup — confidence
+    // is shown on every card so YOU decide. Lower threshold = more training
+    // data feeding the calibrator + path forecaster.
+    minAiScore: SETTINGS.minAiScore || 0,
     maxTrades: SETTINGS.maxTrades || 5
 };
 // Clamp legacy values
@@ -650,20 +653,37 @@ function onTick(tick) {
         ch.className = 'main-change ' + (tick.change >= 0 ? 'up' : 'dn');
         ch.classList.remove('loading-shimmer');
 
-        // update last candle live
-        if (STATE.candles.length) {
+        // ────────────────────────────────────────────────────────────
+        //  Live candle update — closes the gap between chart and broker.
+        //  Detects when the tick's time falls into a NEW candle bucket
+        //  and APPENDS a new candle. Otherwise mutates the current one
+        //  (low/high/close) so the bar visibly grows in real time.
+        // ────────────────────────────────────────────────────────────
+        if (STATE.candles.length && STATE.candleSeries) {
+            const tfSecMap = { '1minute':60,'3minute':180,'5minute':300,'15minute':900,'30minute':1800,'60minute':3600,'1day':24*60*60 };
+            const tfSec = tfSecMap[STATE.selectedTF] || 300;
+            const nowSec = Math.floor(Date.now() / 1000);
+            const bucket = Math.floor(nowSec / tfSec) * tfSec;
             const last = STATE.candles[STATE.candles.length - 1];
-            last.close = tick.price;
-            if (tick.price > last.high) last.high = tick.price;
-            if (tick.price < last.low) last.low = tick.price;
-            if (STATE.candleSeries) {
+            if (bucket === last.time) {
+                // same bucket → mutate
+                last.close = tick.price;
+                if (tick.price > last.high) last.high = tick.price;
+                if (tick.price < last.low) last.low = tick.price;
                 STATE.candleSeries.update({ time: last.time, open: last.open, high: last.high, low: last.low, close: last.close });
+            } else if (bucket > last.time) {
+                // candle boundary crossed → forge a new candle from this tick
+                const fresh = { time: bucket, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: 0 };
+                STATE.candles.push(fresh);
+                STATE.candleSeries.update(fresh);
             }
+            // bucket < last.time (stale tick) → ignore
         }
     }
 }
 
-// Periodic candle refresh — fast, uses server-side cache (~5ms response)
+// Periodic candle refresh — every 4s for true near-real-time anchoring.
+// Server cache makes this ~5ms response so it doesn't load the network.
 setInterval(async () => {
     if (!STATE.candles.length) return;
     try {
@@ -675,10 +695,10 @@ setInterval(async () => {
             updateChartIndicators();
         }
     } catch (e) {}
-}, 10000);
+}, 4000);   // 4s — keeps chart fresh while live ticks fill the gap between
 
-// Trigger signal check every 3s — server cache makes this cheap.
-setInterval(triggerSignalCheck, 3000);
+// Trigger signal check every 2s — God Mode: fire fast, train hard.
+setInterval(triggerSignalCheck, 2000);
 
 async function triggerSignalCheck() {
     if (STATE.candles.length < 30) return;
@@ -1808,7 +1828,7 @@ async function refreshAIRationale() {
                 vix: STATE.indianVIX,
                 accountSize: cfg.capital,
                 riskPercent: cfg.risk,
-                minScore: cfg.minAiScore || 70   // gate — no signal below this AI score
+                minScore: cfg.minAiScore ?? 0   // God Mode default = 0 (all signals)
             })
         });
         if (!r.ok) throw new Error('eval failed');
@@ -2482,7 +2502,7 @@ async function refreshMultiTf() {
     const agg = document.getElementById('multitf-agg');
     if (!grid) return;
     try {
-        const r = await fetch(STATE.market.backend + `/api/signals/multi-tf/${STATE.selectedSymbol}?riskPercent=${cfg.risk}&accountSize=${cfg.capital}&minScore=${cfg.minAiScore || 70}`);
+        const r = await fetch(STATE.market.backend + `/api/signals/multi-tf/${STATE.selectedSymbol}?riskPercent=${cfg.risk}&accountSize=${cfg.capital}&minScore=${cfg.minAiScore ?? 0}`);
         if (!r.ok) throw new Error('multi-tf fetch failed');
         const data = await r.json();
 
