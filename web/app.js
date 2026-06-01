@@ -460,7 +460,9 @@ function initChart() {
         bottomColor: 'rgba(235, 91, 60, 0.04)',
         lineColor: 'rgba(77, 125, 255, 0)',
         lineWidth: 0,
-        lastValueVisible: false, priceLineVisible: false
+        lastValueVisible: false, priceLineVisible: false,
+        crosshairMarkerVisible: false,
+        pointMarkersVisible: false   // ← kills the dotty bottom row
     });
     STATE.forecastTargetLines = [];  // price lines for T1/SL
 
@@ -1332,7 +1334,8 @@ const CHART_PATTERN_WHITELIST = new Set([
     'Shooting Star',                          // bearish exhaustion at top
     'Piercing Line', 'Dark Cloud'             // mid-trend reversals
 ]);
-const MIN_CHART_PATTERN_CONF = 78;  // tighter floor — only confident calls reach the chart
+const MIN_CHART_PATTERN_CONF = 82;  // tight — only the rare, meaningful signatures
+const MAX_CHART_PATTERN_COUNT = 6;  // cap total markers on chart at 6 best
 
 function drawPatternMarkers(patScan) {
     if (!STATE.candleSeries) return;
@@ -1360,14 +1363,20 @@ function drawPatternMarkers(patScan) {
         CHART_PATTERN_WHITELIST.has(m.type) && m.confidence >= MIN_CHART_PATTERN_CONF
     );
 
-    // Further dedupe: cap to max 1 marker per candle (keep highest confidence)
+    // Dedupe: max 1 marker per candle (keep highest confidence)
     const perCandle = new Map();
     for (const m of filtered) {
         const ex = perCandle.get(m.time);
         if (!ex || ex.confidence < m.confidence) perCandle.set(m.time, m);
     }
 
-    const patternMarkers = Array.from(perCandle.values()).map(m => ({
+    // HARD CAP: only the top N highest-confidence markers reach the chart.
+    // Side panel still lists every pattern (all 209 of them, ranked).
+    const topMarkers = Array.from(perCandle.values())
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, MAX_CHART_PATTERN_COUNT);
+
+    const patternMarkers = topMarkers.map(m => ({
         time: m.time,
         position: m.bias === 'BULLISH' ? 'belowBar' : 'aboveBar',
         color: m.bias === 'BULLISH' ? 'rgba(0, 208, 156, 0.95)'
