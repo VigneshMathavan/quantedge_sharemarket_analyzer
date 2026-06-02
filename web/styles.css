@@ -1983,6 +1983,52 @@ body.hide-cpr      #cpr-panel { display: none; }
 .scc-tier-pill.elite     { background: #ffd700; color: #000; animation: god-pulse 2s ease-in-out infinite; }
 .scc-tier-pill.weak      { background: var(--text-3); color: var(--bg-1); }
 
+/* Per-factor confidence breakdown — master-spec explainability layer.
+   Each pillar of the master spec gets a horizontal bar showing its 0-100
+   contribution to the signal. Strong = green, mid = amber, weak = red. */
+.scc-factors {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-factors-head {
+    font-weight: 800; color: var(--text-1); margin-bottom: 8px;
+    font-size: 10px; letter-spacing: 0.05em;
+}
+.scc-factors-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+}
+.scc-factor {
+    display: grid; grid-template-columns: 70px 1fr 32px;
+    align-items: center; gap: 8px;
+    padding: 2px 0;
+}
+.fac-label {
+    font-size: 9.5px; text-transform: capitalize;
+    color: var(--text-3); font-weight: 600;
+}
+.fac-bar {
+    height: 5px; background: var(--bg-3); border-radius: 3px;
+    overflow: hidden; display: block;
+}
+.fac-fill {
+    display: block; height: 100%;
+    transition: width 0.3s ease;
+}
+.scc-factor.fac-strong .fac-fill { background: var(--neon-green); }
+.scc-factor.fac-mid    .fac-fill { background: var(--neon-amber, #ffb245); }
+.scc-factor.fac-weak   .fac-fill { background: var(--neon-red); }
+.fac-val {
+    font-size: 10px; font-weight: 800; text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.scc-factor.fac-strong .fac-val { color: var(--neon-green); }
+.scc-factor.fac-mid    .fac-val { color: var(--neon-amber, #ffb245); }
+.scc-factor.fac-weak   .fac-val { color: var(--neon-red); }
+
 /* Live chain context attached to every actionable signal — proof the signal
    was built from broker chain data, never theoretical numbers. */
 .scc-chain {

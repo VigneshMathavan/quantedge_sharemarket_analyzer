@@ -2505,6 +2505,23 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── PER-FACTOR CONFIDENCE BREAKDOWN (master-spec explainability) ── -->
+            ${sig.factorScores ? `
+                <div class="scc-factors">
+                    <div class="scc-factors-head">🧠 Confidence Breakdown</div>
+                    <div class="scc-factors-grid">
+                        ${Object.entries(sig.factorScores).map(([k, v]) => {
+                            const cls = v >= 70 ? 'fac-strong' : v >= 50 ? 'fac-mid' : 'fac-weak';
+                            return `<div class="scc-factor ${cls}">
+                                <span class="fac-label">${k}</span>
+                                <span class="fac-bar"><span class="fac-fill" style="width:${v}%"></span></span>
+                                <span class="fac-val">${Math.round(v)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- ── LIVE CHAIN CONTEXT (broker snapshot at signal time) ── -->
             ${sig.chainSnapshot ? `
                 <div class="scc-chain">

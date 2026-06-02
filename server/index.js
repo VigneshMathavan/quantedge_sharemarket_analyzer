@@ -27,6 +27,7 @@ import { cprBreakoutStrategy, cprReversalStrategy } from './strategies/cpr-strat
 import { buildActionableSignal } from './strategies/signal-builder.js';
 import { buildChainSnapshot } from './chain-snapshot.js';
 import { logSignalFire } from './signal-journal.js';
+import { computeAllParameters, computeFactorScores } from './parameter-engine.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -227,6 +228,28 @@ const engineV2 = new SignalEngineV2({
 });
 
 // --- REST endpoints ---
+// Parameter snapshot inspection — returns the full 50+ indicator vector
+// computed on the live candles + chain. Used for explainability + by the
+// ops dashboard to verify what the engine is seeing.
+app.get('/api/parameters/:symbol', async (req, res) => {
+    try {
+        const symbol = req.params.symbol.toUpperCase();
+        const tf = req.query.tf || '5minute';
+        const candles = await provider.getHistorical(symbol, tf, 220);
+        let chain = [];
+        try { chain = await provider.getOptionChain(symbol); } catch {}
+        const params = computeAllParameters({ candles, chain, spot: candles[candles.length - 1]?.close });
+        res.json({
+            symbol, tf, ts: Date.now(),
+            candleCount: candles.length,
+            chainSize: chain?.length || 0,
+            parameters: params
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Ops dashboard — local-first monitoring. DB stats, recent logs,
 // last-signal time, last-chain-refresh, today's signal count.
 app.get('/api/ops', async (req, res) => {
@@ -417,6 +440,17 @@ app.post('/api/signals/confluence', async (req, res) => {
                 if (sharedChain?.length) {
                     actionable.chainSnapshot = buildChainSnapshot(sharedChain, candles[candles.length - 1].close);
                 }
+                // ATTACH full parameter snapshot (50+ indicators) + per-factor
+                // confidence breakdown — powers the explainability UI and
+                // logs the full vector for future historical similarity matching.
+                try {
+                    const params = computeAllParameters({
+                        candles, chain: sharedChain,
+                        spot: candles[candles.length - 1].close
+                    });
+                    actionable.parameters = params;
+                    actionable.factorScores = computeFactorScores(params, result.side);
+                } catch (e) { console.error('[parameter-engine]', e.message); }
             }
         }
 
