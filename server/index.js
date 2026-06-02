@@ -347,11 +347,20 @@ app.post('/api/signals/confluence', async (req, res) => {
 
         // Enrich with strike + SL/TP/sizing when a signal fires
         let actionable = null;
+        let chainBlocked = null;
         if (result.side !== 'NO_TRADE') {
-            actionable = buildActionableSignal({
+            const built = buildActionableSignal({
                 verdict: result, candles, chain: sharedChain, symbol,
                 accountSize, riskPercent
             });
+            // If chain was unavailable, signal-builder returns { blocked: true }.
+            // Surface that to the UI separately so user knows WHY no card.
+            if (built?.blocked) {
+                chainBlocked = built;
+                actionable = null;
+            } else {
+                actionable = built;
+            }
         }
 
         // AI Path Forecast on fire — preview what the model thinks comes next
@@ -470,6 +479,7 @@ app.post('/api/signals/confluence', async (req, res) => {
         res.json({
             symbol, ...result,
             actionable: passesGate ? actionable : null,
+            chainBlocked,                    // present when chain unavailable
             forecast, approval, strikeOptions,
             expiry: expiryAnalysis,
             suppressed: !passesGate,

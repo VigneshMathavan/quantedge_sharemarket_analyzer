@@ -2194,6 +2194,26 @@ async function refreshAIRationale() {
         //      up to 60s before flipping to idle. Lets the user read it.
         // ─────────────────────────────────────────────────────────────
         const a = data.actionable;
+        // If chain is blocked (broker unavailable), show explicit warning so
+        // user doesn't think the engine is silent — they see WHY no card.
+        if (data.chainBlocked && !a) {
+            const wrap = document.getElementById('signal-card-wrap');
+            if (wrap && STATE._lastSignalSig !== 'CHAIN_BLOCKED') {
+                STATE._lastSignalSig = 'CHAIN_BLOCKED';
+                wrap.innerHTML = `
+                    <div class="signal-card-idle" style="border:1px solid var(--neon-amber, #ffb245); background: rgba(255,178,69,0.06);">
+                        <span class="icon">⚠️</span>
+                        <div><b>Live option chain unavailable</b></div>
+                        <div style="font-size: 11px; line-height: 1.5; margin-top: 6px; color: var(--text-2);">
+                            Engine detected ${data.chainBlocked.side === 'BUY_CALL' ? 'BUY CALL' : 'BUY PUT'} setup
+                            on ${data.chainBlocked.symbol}, but the broker option chain returned no data — likely market closed (15:30 IST)
+                            or Upstox API throttled. <b>No card shown to avoid misleading premiums.</b>
+                            Signal will reappear when chain comes back.
+                        </div>
+                    </div>`;
+            }
+            return;
+        }
         // Signature includes premium (rounded to ₹1) so the card re-renders
         // when the live LTP moves even if side/strike/tier are unchanged.
         // Previously we only dedupe'd on tier/score → user saw same stale

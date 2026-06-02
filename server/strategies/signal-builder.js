@@ -26,8 +26,11 @@ function deltaForOffset(offset) {
 function selectStrike({ side, spot, chain, tier, symbol }) {
     const meta = SYMBOL_META[symbol] || { strike_gap: 50 };
     const right = side === 'BUY_CALL' ? 'CE' : 'PE';
+    // Relax filter — was requiring oi>50K + ltp>5 which on quiet markets or
+    // very-OTM strikes filtered EVERYTHING out, falling through to synthetic.
+    // Now keep any positive-LTP row; we re-filter for OI later only if needed.
     const candidates = chain && chain.length
-        ? chain.filter(o => o.type === right && o.oi > 50000 && o.ltp > 5)
+        ? chain.filter(o => o.type === right && o.ltp > 0)
         : [];
 
     // No real chain → synthesize ATM
@@ -146,6 +149,24 @@ export function buildActionableSignal({ verdict, candles, chain, symbol, account
         side: verdict.side, spot: last.close, chain,
         tier: verdict.tier || 'B', symbol
     });
+
+    // HARD BLOCK: never surface a signal with synthetic (theoretical) premium.
+    // Showing ₹117 for a strike that's actually ₹15 misleads the user into
+    // setting SL/T1/T2 at fictional levels and entering trades that hit SL
+    // instantly when the broker price reasserts. Better to show "Chain
+    // unavailable — wait" than a wrong signal.
+    if (strike.source === 'synthetic') {
+        return {
+            id: 'sig_blocked_' + Date.now().toString(36),
+            time: Date.now(),
+            symbol,
+            side: verdict.side,
+            blocked: true,
+            blockedReason: 'OPTION_CHAIN_UNAVAILABLE',
+            blockedMessage: 'Live option chain not returning data — broker is closed or chain endpoint stale. Signal will appear when chain comes back.'
+        };
+    }
+
     const levels = computeLevels({
         side: verdict.side, spot: last.close,
         atrV, delta: strike.delta, premium: strike.premium
