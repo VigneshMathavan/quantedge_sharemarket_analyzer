@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QuantEdge — Ops</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+    background: #0a0e1a; color: #d8dde6; padding: 24px; line-height: 1.5;
+}
+h1 { font-size: 22px; margin-bottom: 8px; color: #fff; }
+.sub { color: #7888a0; font-size: 12px; margin-bottom: 24px; }
+.grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-bottom: 24px;
+}
+.card {
+    background: #131829; border: 1px solid #1f2942; border-radius: 4px;
+    padding: 14px;
+}
+.card-label {
+    font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #7888a0; margin-bottom: 6px;
+}
+.card-val { font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.card-sub { font-size: 10px; color: #7888a0; margin-top: 4px; }
+.section { margin-bottom: 28px; }
+.section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+    color: #ffb245; font-weight: 800; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid #1f2942;
+}
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { text-align: left; padding: 8px; color: #7888a0; font-weight: 700;
+     border-bottom: 1px solid #1f2942; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.08em; }
+td { padding: 7px 8px; border-bottom: 1px solid #131829; color: #d8dde6; }
+.lvl-INFO { color: #4d7dff; }
+.lvl-WARN { color: #ffb245; }
+.lvl-ERROR { color: #eb5b3c; }
+.side-CALL, .side-BUY_CALL { color: #00d09c; font-weight: 700; }
+.side-PUT, .side-BUY_PUT { color: #eb5b3c; font-weight: 700; }
+.refresh-info { color: #7888a0; font-size: 10px; text-align: right; }
+.dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #00d09c; margin-right: 6px; box-shadow: 0 0 6px #00d09c;
+}
+.dot.stale { background: #ffb245; box-shadow: 0 0 6px #ffb245; }
+.dot.dead { background: #eb5b3c; box-shadow: 0 0 6px #eb5b3c; }
+a { color: #4d7dff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+    <h1>⚡ QuantEdge · Ops Dashboard</h1>
+    <div class="sub">
+        <span id="status-dot" class="dot"></span><span id="status-text">Connecting…</span>
+        · <a href="/">← back to trading view</a>
+        · auto-refresh every 5s
+    </div>
+
+    <div class="grid" id="stats-grid"></div>
+
+    <div class="section">
+        <div class="section-title">Recent signals (last 20)</div>
+        <table id="signals-table"><thead><tr>
+            <th>Time IST</th><th>Symbol</th><th>Side</th><th>Tier</th>
+            <th>Strike</th><th>Premium</th><th>Regime</th>
+        </tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">System log (last 50)</div>
+        <table id="logs-table"><thead><tr>
+            <th>Time IST</th><th>Level</th><th>Component</th><th>Message</th>
+        </tr></thead><tbody></tbody></table>
+    </div>
+
+<script>
+const fmtIst = ms => {
+    const d = new Date(ms + (5*60+30) * 60000);
+    return d.toISOString().slice(11, 19);
+};
+const fmtSec = s => {
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+};
+
+async function refresh() {
+    try {
+        const r = await fetch('/api/ops');
+        if (!r.ok) throw new Error('fetch failed');
+        const d = await r.json();
+        document.getElementById('status-dot').className = 'dot';
+        document.getElementById('status-text').textContent =
+            `LIVE · uptime ${fmtSec(d.uptime_sec)} · ${d.mem_mb}MB heap`;
+
+        const grid = document.getElementById('stats-grid');
+        const lastSigSec = d.sqlite.lastSignal ? Math.round((Date.now() - d.sqlite.lastSignal) / 1000) : null;
+        const lastTradeSec = d.sqlite.lastTrade ? Math.round((Date.now() - d.sqlite.lastTrade) / 1000) : null;
+        grid.innerHTML = `
+            <div class="card"><div class="card-label">Signals (DB)</div>
+              <div class="card-val">${d.sqlite.signalCount.toLocaleString()}</div>
+              <div class="card-sub">last ${lastSigSec ? fmtSec(lastSigSec) + ' ago' : 'never'}</div></div>
+            <div class="card"><div class="card-label">Trades (DB)</div>
+              <div class="card-val">${d.sqlite.tradeCount.toLocaleString()}</div>
+              <div class="card-sub">last ${lastTradeSec ? fmtSec(lastTradeSec) + ' ago' : 'never'}</div></div>
+            <div class="card"><div class="card-label">DB Size</div>
+              <div class="card-val">${d.sqlite.dbSizeMB} MB</div>
+              <div class="card-sub">sqlite WAL</div></div>
+            <div class="card"><div class="card-label">Uptime</div>
+              <div class="card-val">${fmtSec(d.uptime_sec)}</div>
+              <div class="card-sub">${d.mem_mb} MB heap</div></div>
+        `;
+
+        const sigTbody = document.querySelector('#signals-table tbody');
+        sigTbody.innerHTML = d.recentSignals.length === 0
+            ? '<tr><td colspan="7" style="text-align:center;color:#7888a0;padding:20px">No signals logged yet.</td></tr>'
+            : d.recentSignals.map(s => `<tr>
+                <td>${fmtIst(s.ts)}</td>
+                <td>${s.symbol}</td>
+                <td class="side-${s.side}">${s.side === 'BUY_CALL' ? 'CALL' : s.side === 'BUY_PUT' ? 'PUT' : (s.side||'')}</td>
+                <td>${s.tier || '—'}</td>
+                <td>${s.strike || '—'}</td>
+                <td>${s.premium ? '₹' + s.premium : '—'}</td>
+                <td>${s.regime || '—'}</td>
+              </tr>`).join('');
+
+        const logTbody = document.querySelector('#logs-table tbody');
+        logTbody.innerHTML = d.recentLogs.length === 0
+            ? '<tr><td colspan="4" style="text-align:center;color:#7888a0;padding:20px">No logs yet.</td></tr>'
+            : d.recentLogs.map(l => `<tr>
+                <td>${fmtIst(l.ts)}</td>
+                <td class="lvl-${l.level}">${l.level}</td>
+                <td>${l.component || '—'}</td>
+                <td>${(l.message || '').slice(0, 200)}</td>
+              </tr>`).join('');
+    } catch (e) {
+        document.getElementById('status-dot').className = 'dot dead';
+        document.getElementById('status-text').textContent = 'OFFLINE — ' + e.message;
+    }
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

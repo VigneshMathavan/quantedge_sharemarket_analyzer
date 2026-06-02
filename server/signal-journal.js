@@ -86,6 +86,11 @@ export function logSignalFire({ symbol, side, candles, votes, confluenceScore, r
     };
     _writeQueue.push(record);
     setImmediate(flushQueue);
+
+    // Also persist to SQLite — queryable for similarity matching later.
+    // Lazy import so journal still works if db.js absent.
+    import('./db.js').then(({ logSignal }) => logSignal(record))
+        .catch(() => { /* SQLite optional */ });
 }
 
 // Read recent journal entries — used by similarity matcher (future).

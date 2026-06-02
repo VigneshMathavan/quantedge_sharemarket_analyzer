@@ -42,6 +42,12 @@ data/_summary.json
 data/strategy-weights.json
 # data/win-prob-model.json — ALLOWED below (small ML model needed on Railway)
 
+# SQLite database — personal trading data, never in git
+data/quantedge.db
+data/quantedge.db-wal
+data/quantedge.db-shm
+data/logs/
+
 # But DO commit the trained ML models so deploys work out-of-the-box
 !data/path-forecaster-model.json
 !data/path-forecaster-rf.json

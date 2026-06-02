@@ -136,10 +136,18 @@ class HistoryStore {
             exitReason: trade.exitReason,               // SL_HIT | TARGET_HIT | TIME_STOP
             spotEntry: trade.spotEntry,
             spotExit: trade.spotExit,
-            source: trade.source || 'live'              // live | replay | backtest
+            source: trade.source || 'live',             // live | replay | backtest
+            firingStrategies: trade.firingStrategies || [],
+            chainSnapshot: trade.chainSnapshot || null
         };
         this.trades.push(t);
         this._save();
+        // ALSO persist to SQLite — durable across restarts/redeploys.
+        // Lazy import to keep db module optional at boot if not yet built.
+        import('./db.js').then(({ saveTrade, sysLog }) => {
+            saveTrade(t);
+            sysLog('INFO', 'history', `trade saved ${t.symbol} ${t.strike}${t.right} pnl=${t.pnl}`);
+        }).catch(e => console.error('[history] sqlite save failed:', e.message));
         return t;
     }
 

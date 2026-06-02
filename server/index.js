@@ -65,6 +65,10 @@ const orchestrator = new StrategyOrchestrator([
 ]);
 import { SignalEngine } from './signal.js';
 import { SignalEngineV2 } from './signal2.js';
+import { runBootstrap } from './db-bootstrap.js';
+
+// Run JSON → SQLite migration on first boot (idempotent)
+runBootstrap();
 
 const PORT = parseInt(process.env.PORT || '4300', 10);
 const WEB_ORIGIN = process.env.WEB_ORIGIN || 'http://localhost:5180';
@@ -223,6 +227,35 @@ const engineV2 = new SignalEngineV2({
 });
 
 // --- REST endpoints ---
+// Ops dashboard — local-first monitoring. DB stats, recent logs,
+// last-signal time, last-chain-refresh, today's signal count.
+app.get('/api/ops', async (req, res) => {
+    try {
+        const { getDbStats, recentLogs, recentSignals } = await import('./db.js');
+        const stats = getDbStats();
+        const logs = recentLogs(50);
+        const signals = recentSignals(20);
+        const startMs = Date.now() - (5*60+30) * 60000;
+        const istToday = new Date(startMs).toISOString().slice(0, 10);
+        res.json({
+            ok: true,
+            mode: 'live',
+            time: Date.now(),
+            uptime_sec: Math.round(process.uptime()),
+            mem_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+            sqlite: stats,
+            recentLogs: logs,
+            recentSignals: signals.map(s => ({
+                ts: s.ts, symbol: s.symbol, side: s.side, tier: s.tier,
+                strike: s.strike, premium: s.premium, regime: s.regime
+            })),
+            todayIst: istToday
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/health', (req, res) => {
     res.json({ ok: true, mode: provider.mode, time: Date.now() });
 });
@@ -288,10 +321,26 @@ app.get('/api/discovery/stock/:name', async (req, res) => {
 //  Weekly history endpoints — every trade of the current week
 //  Resets at Monday 00:00 IST (old week auto-archived to data/archive/)
 // ============================================================
-app.get('/api/history/week', (req, res) => {
+app.get('/api/history/week', async (req, res) => {
+    // Merge in-memory trades with SQLite-backed history so the user sees
+    // EVERYTHING even after server restarts. SQLite is the durable source
+    // of truth; in-memory is the fast hot cache.
+    let merged = history.list();
+    try {
+        const { listTrades } = await import('./db.js');
+        const weekStartMs = Date.now() - 7 * 86400 * 1000;
+        const dbTrades = listTrades({ since: weekStartMs });
+        const byId = {};
+        for (const t of merged) byId[t.id || t.time] = t;
+        for (const t of dbTrades) {
+            const k = t.id || t.time;
+            if (!byId[k]) byId[k] = t;
+        }
+        merged = Object.values(byId).sort((a, b) => (a.time || 0) - (b.time || 0));
+    } catch (e) { /* db optional */ }
     res.json({
         summary: history.summary(),
-        trades: history.list()
+        trades: merged
     });
 });
 
