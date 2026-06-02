@@ -40,12 +40,13 @@ data/week-trades.json
 data/training_NIFTY.json
 data/_summary.json
 data/strategy-weights.json
-data/win-prob-model.json
+# data/win-prob-model.json — ALLOWED below (small ML model needed on Railway)
 
 # But DO commit the trained ML models so deploys work out-of-the-box
 !data/path-forecaster-model.json
 !data/path-forecaster-rf.json
 !data/path-forecaster-model-5yr.json
+!data/win-prob-model.json
 
 # ---- OS junk ----
 .DS_Store

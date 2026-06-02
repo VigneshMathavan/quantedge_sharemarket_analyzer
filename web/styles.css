@@ -1130,6 +1130,11 @@ input, select { font-family: inherit; color: inherit; }
     color: var(--accent);
     box-shadow: 0 0 8px var(--accent-glow-soft);
 }
+.ai-model-chip.partial {
+    background: var(--bg-3);
+    color: var(--text-2);
+    border: 1px solid var(--line);
+}
 .ai-rationale {
     background: var(--bg-2);
     border: 1px solid var(--line);

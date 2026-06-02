@@ -2009,11 +2009,15 @@ async function refreshAIRationale() {
         if (!r.ok) throw new Error('eval failed');
         const data = await r.json();
 
-        // Model chip
+        // Model chip — engine still works on rules+RF when win-prob ML is absent,
+        // so don't scream OFFLINE. Show what's actually running.
         if (chip) {
             const ready = data.modelStatus === 'node-local';
-            chip.textContent = ready ? 'ML READY' : 'OFFLINE';
-            chip.className = 'ai-model-chip ' + (ready ? 'ready' : '');
+            chip.textContent = ready ? 'ML READY' : 'RULES';
+            chip.className = 'ai-model-chip ' + (ready ? 'ready' : 'partial');
+            chip.title = ready
+                ? 'Win-probability ML model + rules + RF forecast all active'
+                : 'Rule engine + RF path forecast active (ML win-prob model not loaded)';
         }
 
         // If server suppressed the signal due to low AI score, downgrade
