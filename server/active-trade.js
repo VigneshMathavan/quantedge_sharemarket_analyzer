@@ -86,13 +86,43 @@ class ActiveTradeTracker {
                 brokerPremium = row.ltp;
             }
         }
-        const spotMove = (last.close - s.spot.entry) * direction;
         const minutesElapsed = (Date.now() - s.time) / 60000;
-        const thetaBleed = s.option.premium * 0.0008 * minutesElapsed;
-        const theoreticalPremium = Math.max(0.5, s.option.premium + spotMove * s.option.delta - thetaBleed);
-        // Broker LTP wins when present; theoretical is a fallback only
-        const premEstimate = brokerPremium ?? theoreticalPremium;
-        const premiumSource = brokerPremium != null ? 'broker' : 'estimated';
+        // HARD RULE: when no broker LTP, refuse to show a theoretical
+        // estimate. Return premiumSource: 'unavailable' so the UI can show
+        // "Chain unavailable — refresh after broker comes back" instead of
+        // misleading numbers. SL/T1/T2 hit detection only runs when we have
+        // a real price to compare against.
+        const premEstimate = brokerPremium;
+        const premiumSource = brokerPremium != null ? 'broker' : 'unavailable';
+        const havePremium = brokerPremium != null;
+
+        // If we have no live broker premium, return a special status. NEVER
+        // trigger SL_HIT / T1_HIT from theoretical data — that's exactly the
+        // "instant SL hit" bug that burned the user on real money.
+        if (!havePremium) {
+            return {
+                premEstimate: null,
+                premiumSource: 'unavailable',
+                premiumStaleMsg: 'Broker chain unavailable — monitoring paused. SL/T1/T2 checks resume when chain returns. No exit triggers will fire on stale data.',
+                pnlEstimate: 0,
+                pnlPct: 0,
+                minutesInTrade: Math.round(minutesElapsed),
+                inDrawdown: false,
+                drawdownPct: 0,
+                warnings: [{ tag: 'CHAIN_DOWN', msg: 'Live option chain unavailable — monitoring paused', severity: 40 }],
+                reasonsToHold: [],
+                warningScore: 0,
+                reversalEvidence: 0,
+                reversalSignals: [],
+                urgency: 'PAUSED',
+                urgencyMsg: 'Waiting for broker chain to resume',
+                exitNow: false,
+                exitReason: null,
+                forecastFavors: null,
+                forecastVetoes: false,
+                spotNow: last.close
+            };
+        }
 
         // --- P&L ---
         const lotSize = s.option.lotSize;
@@ -266,7 +296,7 @@ class ActiveTradeTracker {
         return {
             premEstimate: parseFloat(premEstimate.toFixed(2)),
             premiumSource,                              // 'broker' (live LTP) or 'estimated' (theoretical)
-            theoreticalPremium: parseFloat(theoreticalPremium.toFixed(2)),
+            // theoretical premium intentionally removed — we only emit broker LTP
             pnlEstimate: Math.round(pnlEstimate),
             pnlPct: parseFloat(pnlPct.toFixed(1)),
             minutesInTrade: Math.round(minutesElapsed),

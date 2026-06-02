@@ -572,6 +572,57 @@ function updateChartIndicators() {
     const b = bb(closes);
     STATE.bbUpper.setData(b.map(x => ({ time: STATE.candles[x.idx].time, value: x.upper })));
     STATE.bbLower.setData(b.map(x => ({ time: STATE.candles[x.idx].time, value: x.lower })));
+    updateCVDLine();
+}
+
+// ────────────────────────────────────────────────────────────────
+//  CVD (Cumulative Volume Delta) — APPROXIMATION
+//
+//  True CVD needs tick-by-tick trades with bid/ask side flags.
+//  Upstox public API doesn't expose that, so we approximate per
+//  candle: close >= open → that candle's volume counted as BUY,
+//  close < open → counted as SELL. Cumulative sum = CVD line.
+//
+//  This is educational only — directionally useful for spotting
+//  divergence (price up + CVD down = weak rally) but it's NOT
+//  real bid/ask delta. Real footprint requires GDFL/TBT feeds.
+// ────────────────────────────────────────────────────────────────
+function computeCVD(candles) {
+    let cvd = 0;
+    return candles.map(c => {
+        const sign = c.close >= c.open ? 1 : -1;
+        cvd += sign * (c.volume || 0);
+        return { time: c.time, value: cvd };
+    });
+}
+function updateCVDLine() {
+    if (!STATE.chart || !STATE.candles.length) return;
+    const cvdOn = document.querySelector('input[data-ind="cvd"]')?.checked;
+    if (!cvdOn) {
+        if (STATE.cvdSeries) {
+            try { STATE.chart.removeSeries(STATE.cvdSeries); } catch {}
+            STATE.cvdSeries = null;
+        }
+        return;
+    }
+    if (!STATE.cvdSeries) {
+        try {
+            STATE.cvdSeries = STATE.chart.addLineSeries({
+                color: 'rgba(255, 178, 69, 0.95)',
+                lineWidth: 1.5,
+                priceScaleId: 'cvd',
+                priceFormat: { type: 'volume' },
+                lastValueVisible: true,
+                priceLineVisible: false,
+                title: 'CVD≈'
+            });
+            STATE.chart.priceScale('cvd').applyOptions({
+                scaleMargins: { top: 0.85, bottom: 0 },   // bottom band
+                borderVisible: false
+            });
+        } catch (e) { return; }
+    }
+    STATE.cvdSeries.setData(computeCVD(STATE.candles));
 }
 
 // ============================================================
@@ -1481,8 +1532,9 @@ function applyIndicatorState() {
     STATE.forecastConeArea?.applyOptions({ visible: fcVis });
     if (!fcVis) clearForecastPriceLines();
 
-    // Trigger chart redraw so EMA/VWAP/etc. lines reflect toggle
+    // Trigger chart redraw so EMA/VWAP/etc./CVD lines reflect toggle
     if (typeof updateChartIndicators === 'function') updateChartIndicators();
+    if (typeof updateCVDLine === 'function') updateCVDLine();
 }
 function wireIndicatorSwitches() {
     document.querySelectorAll('#indicator-grid input[type=checkbox]').forEach(cb => {
@@ -2979,6 +3031,65 @@ async function refreshMultiTf() {
 setTimeout(refreshMultiTf, 1500);
 setInterval(refreshMultiTf, 2000);  // 2s realtime — server cache makes this cheap
 
+// Trade detail modal — shows everything we know about a single closed trade.
+window.showTradeDetail = function(t) {
+    let modal = document.getElementById('trade-detail-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'trade-detail-modal';
+        modal.className = 'trade-detail-modal';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+        document.body.appendChild(modal);
+    }
+    const win = t.pnl > 0;
+    const entered = new Date(t.time);
+    const exited  = new Date(t.exitTime || t.time);
+    const durMin  = Math.max(0, Math.round((exited - entered) / 60000));
+    const sideLabel = t.side === 'BUY_CALL' ? '🟢 BUY CALL' : '🔴 BUY PUT';
+    const fmtTime = d => d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+    modal.innerHTML = `
+        <div class="td-card">
+            <div class="td-head">
+                <span>${sideLabel} ${t.strike || ''}${t.right || ''}</span>
+                <span class="td-pnl ${win ? 'up' : 'dn'}">${win ? '+' : ''}${fmtCurrency(t.pnl || 0)}</span>
+                <button class="td-close" onclick="document.getElementById('trade-detail-modal').style.display='none'">✕</button>
+            </div>
+            <div class="td-body">
+                <div class="td-section">
+                    <div class="td-label">When</div>
+                    <div>Entered  <b>${fmtTime(entered)}</b></div>
+                    <div>Exited   <b>${fmtTime(exited)}</b> (${durMin}m in trade)</div>
+                    <div>Symbol   <b>${t.symbol || '—'}</b> · Result <b class="${win?'up':'dn'}">${t.result || '—'}</b></div>
+                </div>
+                <div class="td-section">
+                    <div class="td-label">Premium (option)</div>
+                    <div>Entry @ <b>₹${(t.entry ?? t.option?.premium ?? '—')}</b> · Exit @ <b>₹${(t.exit ?? '—')}</b></div>
+                    <div>SL: ₹${t.option?.premiumSL ?? '—'} · T1: ₹${t.option?.premiumT1 ?? '—'} · T2: ₹${t.option?.premiumT2 ?? '—'}</div>
+                    <div>Δ ${t.option?.delta?.toFixed(3) ?? '—'} · IV ${t.option?.iv ?? '—'} · OI ${t.option?.oi ? (t.option.oi/1e6).toFixed(1)+'M' : '—'}</div>
+                </div>
+                <div class="td-section">
+                    <div class="td-label">Position</div>
+                    <div>Lots: <b>${t.sizing?.lots ?? '—'}</b> × ${t.option?.lotSize ?? '—'} = ${t.sizing?.quantity ?? '—'} qty</div>
+                    <div>Capital: <b>${fmtCurrency(t.sizing?.capitalRequired ?? 0)}</b> · Max Loss: <b class="dn">${fmtCurrency(t.sizing?.maxLoss ?? 0)}</b></div>
+                </div>
+                <div class="td-section">
+                    <div class="td-label">Exit reason</div>
+                    <div class="td-reason">${(t.exitReason || 'manual').replace(/_/g, ' ')}</div>
+                </div>
+                ${t.firingStrategies?.length ? `<div class="td-section">
+                    <div class="td-label">Why it fired</div>
+                    ${t.firingStrategies.map(s => `<div>• <b>${s.name}</b> — ${s.reason || ''}</div>`).join('')}
+                </div>` : ''}
+                <div class="td-section">
+                    <div class="td-label">Context at entry</div>
+                    <div>Tier: <b>${t.tier || t.potentialTier || '—'}</b> · Confidence: <b>${t.confidence ?? '—'}%</b></div>
+                    <div>Regime: <b>${t.regime || '—'}</b></div>
+                </div>
+            </div>
+        </div>`;
+    modal.style.display = 'flex';
+};
+
 function renderPossibleSignals(possibles) {
     const list = document.getElementById('possible-list');
     if (!list) return;
@@ -3070,6 +3181,10 @@ async function refreshHistory() {
             listEl.innerHTML = '<div class="history-empty">No trades yet this week.</div>';
             return;
         }
+        // Stash trades on window so the click handler can look one up by id.
+        window._tradesById = {};
+        for (const t of trades) window._tradesById[t.id || t.time] = t;
+
         listEl.innerHTML = trades.map(t => {
             const d = new Date(t.time);
             const time = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' ' +
@@ -3078,7 +3193,7 @@ async function refreshHistory() {
             const win = t.pnl > 0;
             const pnlSign = win ? '+' : '';
             const reason = (t.exitReason || '').replace('_', ' ');
-            return `<div class="hist-row" title="${t.regime || ''} | conf ${t.confidence}% ${t.tier}">
+            return `<div class="hist-row" data-tid="${t.id || t.time}" style="cursor:pointer" title="Click for full trade detail">
                 <div>
                     <div class="hr-time">${time}</div>
                 </div>
@@ -3090,6 +3205,14 @@ async function refreshHistory() {
                 <span class="hr-result ${win ? 'win' : 'loss'}">${t.result}</span>
             </div>`;
         }).join('');
+
+        // Wire click → detail modal
+        listEl.querySelectorAll('.hist-row[data-tid]').forEach(row => {
+            row.addEventListener('click', () => {
+                const t = window._tradesById[row.dataset.tid];
+                if (t) showTradeDetail(t);
+            });
+        });
     } catch (e) {
         listEl.innerHTML = `<div class="history-empty">Error: ${e.message}</div>`;
     }

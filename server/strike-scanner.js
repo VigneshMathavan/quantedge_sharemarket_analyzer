@@ -68,15 +68,21 @@ export function scanStrikes({ symbol, side, spot, candles, accountSize, riskPerc
         // ──────────────────────────────────────────────────────────────
         const chainRow = chain.find(c => c.strike === strike && c.type === expectedType);
         const useChain = !!(chainRow && chainRow.ltp > 0);
-        const realIv = useChain && chainRow.iv ? chainRow.iv / 100 : iv;
+        // HARD RULE: no broker chain row → SKIP this strike entirely. Never
+        // surface theoretical prices to the user. If chain is missing for
+        // this strike (e.g., far-OTM with no quotes), it simply doesn't
+        // appear in the candidate list. If chain is missing for ALL strikes,
+        // the result is empty and the UI shows "Chain unavailable."
+        if (!useChain) continue;
+        const realIv = chainRow.iv ? chainRow.iv / 100 : iv;
         const bsForGamma = blackScholes({ S: spot, K: strike, T, iv: realIv, right });
-        const premium = useChain ? chainRow.ltp : bsForGamma.price;
-        const delta = useChain && chainRow.delta ? chainRow.delta : bsForGamma.delta;
-        const gamma = bsForGamma.gamma;  // not exposed by Upstox — always BS
-        const theta = useChain && chainRow.theta ? chainRow.theta : bsForGamma.theta;
-        const vega = useChain && chainRow.vega ? chainRow.vega : bsForGamma.vega;
-        const oi = chainRow?.oi || 0;
-        const dataSource = useChain ? 'broker' : 'computed';
+        const premium = chainRow.ltp;                      // ALWAYS broker
+        const delta = chainRow.delta || bsForGamma.delta;  // broker preferred, BS only if Upstox didn't send it
+        const gamma = bsForGamma.gamma;                    // Upstox doesn't expose gamma — only metric we compute
+        const theta = chainRow.theta || bsForGamma.theta;
+        const vega = chainRow.vega || bsForGamma.vega;
+        const oi = chainRow.oi || 0;
+        const dataSource = 'broker';                       // always broker now (computed strikes filtered above)
 
         // Premium SL / T1 / T2 — tighter SL + 2.5x ATR T1 → RR ≥ 1:2 (V2 spec)
         const slSpotDist = atrV * 1.0;
