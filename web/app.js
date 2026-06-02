@@ -1779,8 +1779,12 @@ function renderStrikeMini(side, c, fc, isWinner) {
         </div>
     `;
 }
-setTimeout(refreshBestStrikeNow, 3000);
-setInterval(refreshBestStrikeNow, 8000);
+setTimeout(refreshBestStrikeNow, 1500);
+// 4s during market hours (matches option chain refresh), 30s outside
+setInterval(() => {
+    if (!STATE.selectedSymbol) return;
+    refreshBestStrikeNow();
+}, isMarketHours() ? 4000 : 30000);
 
 // ============================================================
 //  Insights tabs (Forecast / Pattern / CPR) — cleaner than 3 stacked cards

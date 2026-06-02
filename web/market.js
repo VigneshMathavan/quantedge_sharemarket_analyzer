@@ -64,15 +64,22 @@ class MarketClient {
         return h;
     }
 
-    async getQuote(symbol) { return this.fetchJSON(`/api/quote/${symbol}`); }
+    // Cache-bust all live-data fetches with a timestamp so no intermediate
+    // layer (browser, CDN, Vercel edge) can serve stale data. On expiry day
+    // option premiums can move 20%+ per minute — staleness reads as "wrong".
+    async getQuote(symbol) {
+        return this.fetchJSON(`/api/quote/${symbol}?_=${Date.now()}`);
+    }
 
     async getHistorical(symbol, interval = '5minute', count = 200) {
-        return this.fetchJSON(`/api/historical/${symbol}?interval=${interval}&count=${count}`);
+        return this.fetchJSON(`/api/historical/${symbol}?interval=${interval}&count=${count}&_=${Date.now()}`);
     }
 
     async getOptionChain(symbol, expiry) {
-        const q = expiry ? `?expiry=${encodeURIComponent(expiry)}` : '';
-        return this.fetchJSON(`/api/option-chain/${symbol}${q}`);
+        const parts = [];
+        if (expiry) parts.push(`expiry=${encodeURIComponent(expiry)}`);
+        parts.push(`_=${Date.now()}`);
+        return this.fetchJSON(`/api/option-chain/${symbol}?${parts.join('&')}`);
     }
 
     async evaluateSignal(payload) {

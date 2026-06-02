@@ -337,13 +337,19 @@ app.post('/api/signals/confluence', async (req, res) => {
             candles, vix, eventGate, newsSentiment, mlScorer: scorer
         });
 
+        // Fetch chain ONCE and reuse — previously this endpoint fetched the
+        // option chain 4 separate times (actionable, approval, strikes, expiry),
+        // adding 1-2 seconds of latency and making the displayed LTPs stale.
+        let sharedChain = [];
+        if (result.side !== 'NO_TRADE') {
+            try { sharedChain = await provider.getOptionChain(symbol); } catch (_) {}
+        }
+
         // Enrich with strike + SL/TP/sizing when a signal fires
         let actionable = null;
         if (result.side !== 'NO_TRADE') {
-            let chain = [];
-            try { chain = await provider.getOptionChain(symbol); } catch (_) {}
             actionable = buildActionableSignal({
-                verdict: result, candles, chain, symbol,
+                verdict: result, candles, chain: sharedChain, symbol,
                 accountSize, riskPercent
             });
         }
@@ -360,11 +366,9 @@ app.post('/api/signals/confluence', async (req, res) => {
         if (result.side !== 'NO_TRADE' && actionable) {
             try {
                 const regimeCls = classifyRegime({ candles, eventGate });
-                let chainForApproval = [];
-                try { chainForApproval = await provider.getOptionChain(symbol); } catch (_) {}
                 approval = approveTrade({
                     side: result.side, candles,
-                    chain: chainForApproval, option: actionable.option,
+                    chain: sharedChain, option: actionable.option,
                     spotEntry: actionable.spot.entry,
                     stopLoss: actionable.spot.stopLoss,
                     target1: actionable.spot.target1,
@@ -385,13 +389,11 @@ app.post('/api/signals/confluence', async (req, res) => {
         let strikeOptions = null;
         if (result.side !== 'NO_TRADE') {
             try {
-                let scanChain = [];
-                try { scanChain = await provider.getOptionChain(symbol); } catch (_) {}
                 strikeOptions = scanStrikes({
                     symbol, side: result.side,
                     spot: candles[candles.length - 1].close,
                     candles, accountSize, riskPercent,
-                    chain: scanChain, iv: 0.18
+                    chain: sharedChain, iv: 0.18
                 });
             } catch (e) { console.error('[strike-scan]', e); }
         }
@@ -451,12 +453,10 @@ app.post('/api/signals/confluence', async (req, res) => {
         let expiryAnalysis = null;
         if (result.side !== 'NO_TRADE' && actionable) {
             try {
-                let chainForExpiry = [];
-                try { chainForExpiry = await provider.getOptionChain(symbol); } catch (_) {}
                 expiryAnalysis = analyzeExpiryDay({
                     symbol, side: result.side,
                     spot: candles[candles.length - 1].close,
-                    chain: chainForExpiry,
+                    chain: sharedChain,
                     candles
                 });
                 // If ELITE tier, upgrade the actionable signal display
