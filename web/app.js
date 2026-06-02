@@ -891,16 +891,21 @@ async function triggerSignalCheck() {
             accountSize: cfg.capital,
             riskPercent: cfg.risk
         });
-        if (signal.side === 'NO_TRADE') {
-            // keep idle card if no active signal already
-            if (!STATE.activeSignal) renderIdleSignal(signal.reason);
-            return;
-        }
-        // only fire if confidence high enough OR no current signal
+        // NOTE: This 2s poller is for STATE tracking + logging only. It does
+        // NOT render the card directly — that's refreshAIRationale's job.
+        // Previously both pollers wrote to #signal-card-wrap with different
+        // payloads, causing the card to flash between two states every 2s.
+        if (signal.side === 'NO_TRADE') return;
         const last = STATE.activeSignal;
         if (last && last.id === signal.id) return;
         if (!last || signal.confidence > last.confidence) {
-            applyNewSignal(signal);
+            // Track state + log, but DON'T re-render the card here.
+            STATE.activeSignal = signal;
+            STATE.recentSignals.unshift(signal);
+            if (STATE.recentSignals.length > 15) STATE.recentSignals.pop();
+            addLog('SIGNAL', `${signal.side === 'BUY_CALL' ? '🟢 BUY CALL' : '🔴 BUY PUT'} ${signal.option.strike} ${signal.option.right} @ ₹${signal.option.premium} — Conf ${signal.confidence}% ${signal.tier}`);
+            renderRecentSignals();
+            drawChartLevels(signal);
         }
     } catch (e) {
         addLog('ERROR', 'Signal eval failed: ' + e.message);
@@ -2170,12 +2175,44 @@ async function refreshAIRationale() {
         // Render Possible Signals (top near-misses) — use the SAME response
         renderPossibleSignals(data.possibles || []);
 
-        // Render the FULL actionable signal card if we have one
-        if (data.actionable) {
-            renderActionableSignal(data.actionable, data.forecast, data.approval, data.strikeOptions, data.expiry);
+        // ─────────────────────────────────────────────────────────────
+        //  DEDUPE + STICKY signal card render.
+        //
+        //  Previously the card was re-rendered every 20s even when the
+        //  underlying signal was identical → user saw a brief flash.
+        //  Also, when actionable briefly went null between polls, the
+        //  card flipped to "No active signal" then back → flashing.
+        //
+        //  Now:
+        //    • Build a signature for the current actionable (side + strike
+        //      + tier + rounded score). Skip render if unchanged.
+        //    • If no actionable this poll, keep showing the last card for
+        //      up to 60s before flipping to idle. Lets the user read it.
+        // ─────────────────────────────────────────────────────────────
+        const a = data.actionable;
+        const sig = a
+            ? `${a.side}|${a.option?.strike}|${a.potentialTier}|${Math.round((data.approval?.finalScore ?? data.confluenceScore ?? 0) / 5) * 5}`
+            : null;
+
+        if (sig) {
+            STATE._lastActionableAt = Date.now();
+            if (STATE._lastSignalSig !== sig) {
+                STATE._lastSignalSig = sig;
+                renderActionableSignal(a, data.forecast, data.approval, data.strikeOptions, data.expiry);
+            }
+            // sig matches last → keep the existing card untouched (no flash)
         } else {
-            // Only show idle if there's no live active trade
-            if (!STATE.activeTrade) renderIdleSignal();
+            // No actionable now. Keep the previous card visible for 60s
+            // so it doesn't strobe in/out as the engine churns.
+            const ageMs = Date.now() - (STATE._lastActionableAt || 0);
+            const keepFor = 60_000;
+            if (!STATE.activeTrade && ageMs > keepFor) {
+                if (STATE._lastSignalSig !== 'IDLE') {
+                    STATE._lastSignalSig = 'IDLE';
+                    renderIdleSignal();
+                }
+            }
+            // else: keep the previously-rendered card on screen
         }
     } catch (e) {
         if (el) el.innerHTML = `<div class="ai-empty">Error: ${e.message}</div>`;
@@ -2935,9 +2972,9 @@ function renderPossibleSignals(possibles) {
     }).join('');
 }
 
-// Initial fetch + refresh every 20s
+// Initial fetch + refresh every 10s (dedupe prevents flash on same-signal polls)
 setTimeout(refreshAIRationale, 2500);
-setInterval(refreshAIRationale, 20 * 1000);
+setInterval(refreshAIRationale, 10 * 1000);
 
 // ============================================================
 //  This Week's Trade History
