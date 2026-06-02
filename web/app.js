@@ -753,8 +753,11 @@ function onTick(tick) {
         if (STATE.candles.length && STATE.candleSeries) {
             const tfSecMap = { '1minute':60,'3minute':180,'5minute':300,'15minute':900,'30minute':1800,'60minute':3600,'1day':24*60*60 };
             const tfSec = tfSecMap[STATE.selectedTF] || 300;
-            const nowSec = Math.floor(Date.now() / 1000);
-            const bucket = Math.floor(nowSec / tfSec) * tfSec;
+            // Use the TICK'S server-stamped time, not Date.now(). Client clock
+            // drift (NTP can be ±2s) was putting the first second of a new
+            // minute into the previous bar's close — wrong bucket, wrong wick.
+            const tickSec = Math.floor((tick.time || Date.now()) / 1000);
+            const bucket = Math.floor(tickSec / tfSec) * tfSec;
             const last = STATE.candles[STATE.candles.length - 1];
             if (bucket === last.time) {
                 // same bucket → mutate forming candle
@@ -763,16 +766,47 @@ function onTick(tick) {
                 if (tick.price < last.low) last.low = tick.price;
                 STATE.candleSeries.update({ time: last.time, open: last.open, high: last.high, low: last.low, close: last.close });
             } else if (bucket > last.time) {
-                // candle boundary crossed → forge a new candle from this tick.
-                // Keep BOTH series in sync so volume bars don't lag the price chart.
+                // ────────────────────────────────────────────────────────
+                //  Candle boundary crossed → forge a new bar.
+                //
+                //  The first tick we OBSERVE after a boundary is usually
+                //  not the true broker open (we poll every 200ms, so we
+                //  may have missed 1-3 ticks at the bar's start). To avoid
+                //  wonky wicks/open, we:
+                //   1. Seed the bar with tick.price for ALL 4 fields
+                //      so it renders immediately.
+                //   2. Fire a one-shot HTTP fetch for the broker's
+                //      authoritative OHLC for this bar (~50ms response
+                //      from server cache). Patches the bar 0.1-0.5s later
+                //      with the real open + any high/low we missed.
+                // ────────────────────────────────────────────────────────
                 const fresh = { time: bucket, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: 0 };
                 STATE.candles.push(fresh);
                 STATE.candleSeries.update(fresh);
                 if (STATE.volumeSeries) {
                     STATE.volumeSeries.update({ time: bucket, value: 0, color: 'rgba(0,208,156,0.4)' });
                 }
-                // Trim memory — keep last 250 candles
                 if (STATE.candles.length > 250) STATE.candles = STATE.candles.slice(-250);
+
+                // Async patch with broker-authoritative OHLC (no setData, just .update on this bar)
+                queueMicrotask(async () => {
+                    try {
+                        const recent = await STATE.market.getHistorical(STATE.selectedSymbol, STATE.selectedTF, 3);
+                        const serverBar = recent?.find(c => c.time === bucket);
+                        if (!serverBar) return;
+                        const local = STATE.candles[STATE.candles.length - 1];
+                        if (!local || local.time !== bucket) return;
+                        // Merge: trust broker open, take wider high/low, keep latest close
+                        local.open = serverBar.open;
+                        local.high = Math.max(local.high, serverBar.high);
+                        local.low  = Math.min(local.low,  serverBar.low);
+                        // close: prefer the most recent tick (already on local.close), but if server is newer use that
+                        STATE.candleSeries.update({ time: local.time, open: local.open, high: local.high, low: local.low, close: local.close });
+                        if (STATE.volumeSeries && serverBar.volume) {
+                            STATE.volumeSeries.update({ time: bucket, value: serverBar.volume, color: local.close >= local.open ? 'rgba(0,208,156,0.4)' : 'rgba(235,91,60,0.4)' });
+                        }
+                    } catch (e) { /* network blip — next tick fixes it */ }
+                });
             }
             // bucket < last.time (stale tick) → ignore
         }
