@@ -189,7 +189,38 @@ class HistoryStore {
         this.trades = [];
         this._save();
     }
+
+    // Retention sweep — user wants trades visible until 16:00 IST, then
+    // pruned so the in-memory store doesn't bloat. Called daily.
+    pruneOlderThanDays(days = 1) {
+        const cutoff = Date.now() - days * 86400 * 1000;
+        const before = this.trades.length;
+        this.trades = this.trades.filter(t => (t.exitTime || t.time || 0) >= cutoff);
+        if (this.trades.length !== before) {
+            console.log(`[history] retention sweep removed ${before - this.trades.length} trades older than ${days}d`);
+            this._save();
+        }
+    }
 }
 
 export const history = new HistoryStore();
+
+// ────────────────────────────────────────────────────────────────
+//  Daily retention sweep at 16:00 IST (30 min after market close)
+//  Keeps yesterday's trades for review, prunes anything > 24h old.
+//  Runs once per minute checking if we just crossed 16:00 IST.
+// ────────────────────────────────────────────────────────────────
+let _lastPruneDate = null;
+setInterval(() => {
+    const istMs = Date.now() + (5*60+30) * 60000;
+    const ist = new Date(istMs);
+    const istHour = ist.getUTCHours();
+    const istMin = ist.getUTCMinutes();
+    const istDate = ist.toISOString().slice(0, 10);
+    if (istHour === 16 && istMin === 0 && _lastPruneDate !== istDate) {
+        _lastPruneDate = istDate;
+        history.pruneOlderThanDays(1);   // keep last 24h
+    }
+}, 60 * 1000);
+
 export { currentWeekKey, weekRange };

@@ -1983,6 +1983,32 @@ body.hide-cpr      #cpr-panel { display: none; }
 .scc-tier-pill.elite     { background: #ffd700; color: #000; animation: god-pulse 2s ease-in-out infinite; }
 .scc-tier-pill.weak      { background: var(--text-3); color: var(--bg-1); }
 
+/* Live chain context attached to every actionable signal — proof the signal
+   was built from broker chain data, never theoretical numbers. */
+.scc-chain {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-chain-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; color: var(--text-1); margin-bottom: 6px;
+    font-size: 10px; letter-spacing: 0.05em;
+}
+.scc-chain-src {
+    font-size: 9px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+}
+.scc-chain-row {
+    display: flex; gap: 14px; padding: 3px 0;
+    color: var(--text-2); flex-wrap: wrap;
+}
+.scc-chain-row b { color: var(--text-1); font-weight: 700; }
+.scc-chain-row b.pos { color: var(--neon-green); }
+.scc-chain-row b.neg { color: var(--neon-red); }
+
 .scc-why {
     padding: 6px 9px;
     background: rgba(77, 125, 255, 0.10);

@@ -708,10 +708,13 @@ function isMarketHours() {
 let _chainTickTimer = null;
 function scheduleChainRefresh() {
     if (_chainTickTimer) clearInterval(_chainTickTimer);
+    // ALWAYS-LIVE chain: 3s during market hours, 20s outside. Cache-busted
+    // on the wire (see market.js getOptionChain) so each fetch hits the
+    // broker fresh — no intermediate cache can serve stale strikes.
     _chainTickTimer = setInterval(() => {
         if (!STATE.selectedSymbol) return;
         loadOptionChain();
-    }, isMarketHours() ? 5000 : 60000);
+    }, isMarketHours() ? 3000 : 20000);
 }
 setTimeout(() => {
     scheduleChainRefresh();
@@ -2502,6 +2505,25 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── LIVE CHAIN CONTEXT (broker snapshot at signal time) ── -->
+            ${sig.chainSnapshot ? `
+                <div class="scc-chain">
+                    <div class="scc-chain-head">
+                        📊 Live Chain @ signal
+                        <span class="scc-chain-src">broker · ${new Date(sig.chainSnapshot.capturedAt).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})} IST</span>
+                    </div>
+                    <div class="scc-chain-row">
+                        <span>ATM <b>${sig.chainSnapshot.atm}</b></span>
+                        <span>PCR <b class="${sig.chainSnapshot.pcr > 1 ? 'pos' : sig.chainSnapshot.pcr < 0.7 ? 'neg' : ''}">${sig.chainSnapshot.pcr ?? '—'}</b></span>
+                        <span>Max Pain <b>${sig.chainSnapshot.maxPain}</b></span>
+                    </div>
+                    <div class="scc-chain-row">
+                        ${sig.chainSnapshot.callWall ? `<span>Call wall <b class="neg">${sig.chainSnapshot.callWall.strike}</b> (${(sig.chainSnapshot.callWall.oi/1e6).toFixed(1)}M)</span>` : ''}
+                        ${sig.chainSnapshot.putWall ? `<span>Put wall <b class="pos">${sig.chainSnapshot.putWall.strike}</b> (${(sig.chainSnapshot.putWall.oi/1e6).toFixed(1)}M)</span>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- ── ACTION BUTTON ── -->
             <div class="scc-actions">${enterBtn}</div>
 
@@ -2544,35 +2566,104 @@ window.enterTrade = async function(sig) {
         });
         const data = await r.json();
         STATE.activeTrade = data.active;
+        // PERSIST to localStorage as well — Railway redeploys wipe the
+        // server's in-memory active trade + ephemeral disk. Local copy
+        // ensures the user always sees their entries even if backend
+        // resets. Synced back to server on demand.
+        persistLocalTrade(data.active, { phase: 'entered' });
         const rp = data.entryRepriced;
         if (rp && rp.driftPct > 2) {
-            // Significant drift between signal premium and live broker LTP —
-            // tell user we used live price so SL/T1/T2 reflect reality.
             toast(`Entered @ ₹${rp.livePremium} (live LTP) · signal was ₹${rp.stalePremium} — repriced ${rp.driftPct > 0 ? 'with ' : ''}${rp.driftPct.toFixed(1)}% drift`, 'success');
         } else {
             toast('Trade entered — monitoring for exit signals', 'success');
         }
         refreshTradeMonitor();
+        refreshHistory();   // immediately update P&L pill
     } catch (e) {
         toast('Failed to enter trade: ' + e.message, 'error');
     }
 };
 
-window.exitActiveTrade = async function(reason) {
-    if (!confirm('Close this trade?')) return;
+// ────────────────────────────────────────────────────────────────
+//  Local trade persistence (survives Railway redeploys)
+// ────────────────────────────────────────────────────────────────
+const LOCAL_TRADES_KEY = 'qe_trades_v1';
+function loadLocalTrades() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_TRADES_KEY) || '[]'); }
+    catch { return []; }
+}
+function saveLocalTrades(arr) {
     try {
-        // Pass live premium + spot estimate so server-side history saves
-        // real P&L instead of a flat zero.
+        // Keep last 200 only — bounds storage
+        const trimmed = arr.slice(-200);
+        localStorage.setItem(LOCAL_TRADES_KEY, JSON.stringify(trimmed));
+    } catch (e) { console.warn('localStorage trade save failed:', e); }
+}
+function persistLocalTrade(trade, { phase, exitPremium = null, spotExit = null, exitReason = null, pnl = null } = {}) {
+    if (!trade) return;
+    const all = loadLocalTrades();
+    const idx = all.findIndex(t => t.id === trade.id);
+    const merged = {
+        id: trade.id,
+        time: trade.time,
+        symbol: trade.symbol,
+        side: trade.side,
+        strike: trade.option?.strike,
+        right: trade.option?.right,
+        option: trade.option,
+        sizing: trade.sizing,
+        tier: trade.tier,
+        confidence: trade.confluenceScore,
+        regime: trade.regime,
+        firingStrategies: trade.firingStrategies,
+        spot: trade.spot,
+        phase,
+        ...(phase === 'exited' && {
+            exitTime: Date.now(),
+            exitPremium,
+            spotExit,
+            exitReason,
+            pnl: pnl ?? 0,
+            result: pnl > 0 ? 'WIN' : pnl < 0 ? 'LOSS' : 'FLAT'
+        })
+    };
+    if (idx >= 0) all[idx] = { ...all[idx], ...merged };
+    else all.push(merged);
+    saveLocalTrades(all);
+}
+
+window.exitActiveTrade = async function(reason, skipConfirm = false) {
+    if (!skipConfirm && !confirm('Close this trade?')) return;
+    try {
         const exitPremium = STATE.lastMonitor?.premEstimate ?? null;
         const spotExit = STATE.lastMonitor?.spotNow ?? null;
+        const activeAtExit = STATE.activeTrade;     // snapshot before we null it
+        // Compute P&L for local persistence
+        const entryPrem = activeAtExit?.option?.premium ?? 0;
+        const lots = activeAtExit?.sizing?.lots ?? 0;
+        const lotSize = activeAtExit?.option?.lotSize ?? 0;
+        const localPnl = exitPremium != null
+            ? Math.round((exitPremium - entryPrem) * lots * lotSize)
+            : 0;
         await fetch(STATE.market.backend + '/api/active-trade/exit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: reason || 'manual', exitPremium, spotExit })
         });
+        // PERSIST exit to localStorage so it survives Railway redeploys
+        if (activeAtExit) {
+            persistLocalTrade(activeAtExit, {
+                phase: 'exited',
+                exitPremium,
+                spotExit,
+                exitReason: reason || 'manual',
+                pnl: localPnl
+            });
+        }
         STATE.activeTrade = null;
         STATE.lastMonitor = null;
-        toast('Trade closed', 'success');
+        toast(`Trade closed · ${localPnl >= 0 ? '+' : ''}${fmtCurrency(localPnl)}`, localPnl >= 0 ? 'success' : 'error');
         document.getElementById('trade-monitor').innerHTML = '';
+        refreshHistory();   // refresh P&L pill + history list
     } catch (e) {
         toast('Failed to exit: ' + e.message, 'error');
     }
@@ -2740,6 +2831,31 @@ async function refreshTradeMonitor() {
         // Detect SL_HIT / T1_HIT / T2_HIT in warnings
         const slHit = m.warnings?.some(w => w.tag === 'SL_HIT');
         const t1Hit = m.warnings?.some(w => w.tag === 'T1_HIT');
+
+        // AUTO-EXIT on broker-confirmed SL hit. Only fires when premiumSource
+        // is 'broker' — we never auto-exit based on theoretical estimates.
+        // This closes the loop: trade entered → SL hit on real broker LTP →
+        // trade auto-closes → P&L persisted to history. Previously these
+        // trades stayed "active" forever, never got saved → vanished on
+        // server restart.
+        const isBroker = m.premiumSource === 'broker';
+        if (slHit && isBroker && !STATE._autoExitFired) {
+            STATE._autoExitFired = true;   // guard against double-fire
+            addLog('SIGNAL', `🛑 Auto-exit on SL hit (broker LTP ₹${m.premEstimate})`);
+            window.exitActiveTrade('SL_HIT', true);   // skipConfirm = true
+            setTimeout(() => { STATE._autoExitFired = false; }, 5000);
+            return;
+        }
+        // Same auto-exit on TIME_STOP (15:15 IST). Always broker-safe since
+        // it's clock-based, not premium-based.
+        const timeStop = m.warnings?.some(w => w.tag === 'TIME_STOP');
+        if (timeStop && !STATE._autoExitFired) {
+            STATE._autoExitFired = true;
+            addLog('SIGNAL', `🛑 Auto-exit at 15:15 IST time stop`);
+            window.exitActiveTrade('TIME_STOP', true);
+            setTimeout(() => { STATE._autoExitFired = false; }, 5000);
+            return;
+        }
 
         // Distance-to-SL and Distance-to-T1 progress bars
         const entryPrem = sig.option.premium;
@@ -3051,6 +3167,18 @@ window.showTodayTrades = async function() {
         }
     } catch (e) {}
 
+    // Merge in localStorage trades — these survive Railway redeploys
+    // and cover any trades the backend lost across restarts.
+    const local = loadLocalTrades().filter(t => t.phase === 'exited');
+    const byId = {};
+    for (const t of trades) byId[t.id || t.time] = t;
+    for (const t of local) {
+        const k = t.id || t.time;
+        if (!byId[k]) byId[k] = t;            // local-only trades surface
+        else byId[k] = { ...t, ...byId[k] };  // backend wins on overlap
+    }
+    trades = Object.values(byId).sort((a, b) => (a.time || 0) - (b.time || 0));
+
     const istToday = new Date(Date.now() + (5*60+30)*60000).toISOString().slice(0, 10);
     const todays = trades.filter(t => {
         const ts = t.exitTime || t.time || 0;
@@ -3222,8 +3350,17 @@ async function refreshHistory() {
         pfEl.textContent = s.tradeCount ? (s.profitFactor === 0 ? '0' : s.profitFactor.toFixed(2)) : '—';
         pfEl.className = (s.profitFactor >= 1 ? 'up' : s.profitFactor > 0 ? 'dn' : '');
 
-        // Trade list
-        const trades = data.trades || [];
+        // Trade list — merge backend trades with localStorage trades
+        // (covers any trades the backend lost across Railway redeploys)
+        let trades = data.trades || [];
+        const local = loadLocalTrades().filter(t => t.phase === 'exited');
+        const byId = {};
+        for (const t of trades) byId[t.id || t.time] = t;
+        for (const t of local) {
+            const k = t.id || t.time;
+            if (!byId[k]) byId[k] = t;
+        }
+        trades = Object.values(byId).sort((a, b) => (a.time || 0) - (b.time || 0));
 
         // ── Today's P&L badge (topbar) ──
         // Sum P&L only for trades closed TODAY in IST.

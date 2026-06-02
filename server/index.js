@@ -25,6 +25,8 @@ import { emaPullbackStrategy } from './strategies/ema-pullback.js';
 import { volumeClimaxStrategy } from './strategies/volume-climax.js';
 import { cprBreakoutStrategy, cprReversalStrategy } from './strategies/cpr-strategy.js';
 import { buildActionableSignal } from './strategies/signal-builder.js';
+import { buildChainSnapshot } from './chain-snapshot.js';
+import { logSignalFire } from './signal-journal.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -360,6 +362,12 @@ app.post('/api/signals/confluence', async (req, res) => {
                 actionable = null;
             } else {
                 actionable = built;
+                // ATTACH live chain snapshot to every actionable signal so the
+                // user sees the broker context the signal fired in — PCR,
+                // Max Pain, ATM OI, near-strike LTPs. No theoretical numbers.
+                if (sharedChain?.length) {
+                    actionable.chainSnapshot = buildChainSnapshot(sharedChain, candles[candles.length - 1].close);
+                }
             }
         }
 
@@ -474,6 +482,20 @@ app.post('/api/signals/confluence', async (req, res) => {
                     actionable.eliteConfirmations = expiryAnalysis.confirmations;
                 }
             } catch (e) { console.error('[expiry-elite]', e); }
+        }
+
+        // Journal every actionable signal — foundation for the future
+        // historical similarity matcher described in the master spec.
+        // Non-blocking write; never delays the response.
+        if (actionable && passesGate) {
+            logSignalFire({
+                symbol, side: result.side, candles, votes: result.votes,
+                confluenceScore: result.confluenceScore,
+                regime: result.regime, forecast, approval,
+                chainSnapshot: actionable.chainSnapshot,
+                tier: actionable.potentialTier,
+                actionable
+            });
         }
 
         res.json({
