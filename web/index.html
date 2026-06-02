@@ -82,7 +82,9 @@
         </div>
         <div class="clock" id="clock">--:--:--</div>
         <div class="god-mode-pill" id="god-mode-pill" title="God Mode: every signal surfaces, confidence shown on each. Lower the gate via Account → Edit settings.">⚡ GOD MODE</div>
-        <div class="pnl-pill" id="pnl-pill" title="Today's net P&amp;L from closed trades">📊 P&amp;L <span id="pnl-amount">₹0</span> <span class="pnl-count" id="pnl-count">0</span></div>
+        <button class="pnl-pill" id="pnl-pill" title="Click to see today's trades" onclick="window.showTodayTrades()">
+            📊 <span id="pnl-amount">₹0</span> <span class="pnl-count" id="pnl-count">0 tr</span>
+        </button>
         <div class="event-pill" id="event-pill" title="Next macro event">
             <span class="event-icon">⚡</span>
             <span class="event-text" id="event-text">—</span>

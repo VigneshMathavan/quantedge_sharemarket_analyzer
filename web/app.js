@@ -3031,6 +3031,77 @@ async function refreshMultiTf() {
 setTimeout(refreshMultiTf, 1500);
 setInterval(refreshMultiTf, 2000);  // 2s realtime — server cache makes this cheap
 
+// Today's trades modal — opens when user clicks the P&L pill in topbar.
+// Lists every trade closed in today's IST date with summary stats.
+window.showTodayTrades = async function() {
+    let modal = document.getElementById('today-trades-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'today-trades-modal';
+        modal.className = 'trade-detail-modal';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+        document.body.appendChild(modal);
+    }
+    let trades = [];
+    try {
+        const r = await fetch(STATE.market.backend + '/api/history/week');
+        if (r.ok) {
+            const data = await r.json();
+            trades = data.trades || [];
+        }
+    } catch (e) {}
+
+    const istToday = new Date(Date.now() + (5*60+30)*60000).toISOString().slice(0, 10);
+    const todays = trades.filter(t => {
+        const ts = t.exitTime || t.time || 0;
+        return new Date(ts + (5*60+30)*60000).toISOString().slice(0, 10) === istToday;
+    });
+
+    const total = todays.reduce((a, t) => a + (t.pnl || 0), 0);
+    const wins  = todays.filter(t => t.pnl > 0).length;
+    const losses = todays.filter(t => t.pnl < 0).length;
+    const wr = todays.length ? Math.round(100 * wins / todays.length) : 0;
+    const fmtTime = ts => new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    modal.innerHTML = `
+        <div class="td-card" style="width: min(720px, 94vw)">
+            <div class="td-head">
+                <span>📊 Today's Trades · ${istToday}</span>
+                <span class="td-pnl ${total >= 0 ? 'up' : 'dn'}">${total >= 0 ? '+' : ''}${fmtCurrency(total)}</span>
+                <button class="td-close" onclick="document.getElementById('today-trades-modal').style.display='none'">✕</button>
+            </div>
+            <div class="td-body">
+                <div class="td-section" style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; text-align:center;">
+                    <div><div class="td-label">Trades</div><b style="font-size:16px">${todays.length}</b></div>
+                    <div><div class="td-label">Wins</div><b style="font-size:16px;color:var(--neon-green)">${wins}</b></div>
+                    <div><div class="td-label">Losses</div><b style="font-size:16px;color:var(--neon-red)">${losses}</b></div>
+                    <div><div class="td-label">Win Rate</div><b style="font-size:16px">${wr}%</b></div>
+                </div>
+                ${todays.length === 0 ? `
+                    <div class="td-section" style="text-align:center;color:var(--text-3);padding:30px;">
+                        No trades closed today yet.<br>
+                        <span style="font-size:10px">Trades you exit during the session will appear here.</span>
+                    </div>
+                ` : `
+                    <div class="td-section" style="padding:0">
+                        ${todays.map(t => {
+                            const win = (t.pnl || 0) > 0;
+                            const side = t.side === 'BUY_CALL' ? 'call' : 'put';
+                            return `<div class="tt-row" onclick="document.getElementById('today-trades-modal').style.display='none'; window.showTradeDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+                                <span class="tt-time">${fmtTime(t.exitTime || t.time)}</span>
+                                <span class="tt-side ${side}">${t.side === 'BUY_CALL' ? 'CE' : 'PE'}</span>
+                                <span class="tt-strike">${t.strike || '?'}</span>
+                                <span class="tt-reason">${(t.exitReason || 'manual').replace(/_/g, ' ')}</span>
+                                <span class="tt-pnl ${win ? 'up' : 'dn'}">${win ? '+' : ''}${fmtCurrency(t.pnl || 0)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                `}
+            </div>
+        </div>`;
+    modal.style.display = 'flex';
+};
+
 // Trade detail modal — shows everything we know about a single closed trade.
 window.showTradeDetail = function(t) {
     let modal = document.getElementById('trade-detail-modal');
