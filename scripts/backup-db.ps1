@@ -5,12 +5,12 @@
 #
 # Setup (one-time, in elevated PowerShell):
 #   $A = New-ScheduledTaskAction -Execute 'powershell.exe' `
-#         -Argument '-NoProfile -ExecutionPolicy Bypass -File C:\Users\vigne\Downloads\quantedge\scripts\backup-db.ps1'
+#         -Argument '-NoProfile -ExecutionPolicy Bypass -File D:\Projects\quantedge\scripts\backup-db.ps1'
 #   $T = New-ScheduledTaskTrigger -Daily -At 11:00PM
 #   Register-ScheduledTask -TaskName 'QuantEdge-DailyBackup' -Action $A -Trigger $T -RunLevel Highest
 
 $ErrorActionPreference = 'Stop'
-$Root = 'C:\Users\vigne\Downloads\quantedge'
+$Root = 'D:\Projects\quantedge'
 $BackupRoot = "$env:USERPROFILE\QuantEdge_backups"
 if (-not (Test-Path $BackupRoot)) { New-Item -ItemType Directory -Path $BackupRoot | Out-Null }
 

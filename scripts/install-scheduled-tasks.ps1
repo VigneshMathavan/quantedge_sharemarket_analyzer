@@ -15,7 +15,7 @@
 #Requires -RunAsAdministrator
 
 $ErrorActionPreference = 'Stop'
-$Root = 'C:\Users\vigne\Downloads\quantedge'
+$Root = 'D:\Projects\quantedge'
 
 # ── Task 1: Auto-start server on LOGON + daily 09:00 IST + Windows startup ──
 $StartScript = Join-Path $Root 'scripts\start-quantedge.ps1'

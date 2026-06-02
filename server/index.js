@@ -28,6 +28,8 @@ import { buildActionableSignal } from './strategies/signal-builder.js';
 import { buildChainSnapshot } from './chain-snapshot.js';
 import { logSignalFire } from './signal-journal.js';
 import { computeAllParameters, computeFactorScores } from './parameter-engine.js';
+import { findSimilarSetups, strategyBacktestSummary } from './similarity-engine.js';
+import { computeMTFAlignment } from './mtf-alignment.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -450,7 +452,34 @@ app.post('/api/signals/confluence', async (req, res) => {
                     });
                     actionable.parameters = params;
                     actionable.factorScores = computeFactorScores(params, result.side);
+
+                    // HISTORICAL INTELLIGENCE — query journal for similar setups
+                    try {
+                        actionable.similarity = findSimilarSetups({
+                            symbol, side: result.side, params,
+                            minSimilarity: 0.70, topK: 50, lookbackDays: 365
+                        });
+                    } catch (e) { console.error('[similarity]', e.message); }
+
+                    // 10-YEAR BACKTEST STATS for the firing strategy
+                    try {
+                        const firingIds = (result.votes || []).filter(v => v.fired).map(v => v.id);
+                        if (firingIds.length) {
+                            actionable.backtestStats = strategyBacktestSummary({
+                                symbol, side: result.side,
+                                strategyId: firingIds[0],     // primary firing strategy
+                                lookbackDays: 3650
+                            });
+                        }
+                    } catch (e) { console.error('[backtest-stats]', e.message); }
                 } catch (e) { console.error('[parameter-engine]', e.message); }
+
+                // MULTI-TIMEFRAME ALIGNMENT — bias across 1m/3m/5m/15m/30m/60m/D
+                try {
+                    actionable.mtfAlignment = await computeMTFAlignment({
+                        provider, symbol, side: result.side
+                    });
+                } catch (e) { console.error('[mtf]', e.message); }
             }
         }
 

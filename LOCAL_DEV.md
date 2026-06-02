@@ -35,7 +35,7 @@ We are now **local-first**. The Vercel/Railway deploys stay alive as a read-only
 
 ```powershell
 # In an ELEVATED PowerShell window (Run as Administrator):
-cd C:\Users\vigne\Downloads\quantedge
+cd D:\Projects\quantedge
 powershell -ExecutionPolicy Bypass -File scripts\install-scheduled-tasks.ps1
 ```
 

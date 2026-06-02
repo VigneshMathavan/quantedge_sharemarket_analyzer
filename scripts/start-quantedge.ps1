@@ -9,13 +9,13 @@
 #
 # Setup auto-start at 09:00 IST (one-time, in elevated PowerShell):
 #   $A = New-ScheduledTaskAction -Execute 'powershell.exe' `
-#         -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\Users\vigne\Downloads\quantedge\scripts\start-quantedge.ps1'
+#         -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File D:\Projects\quantedge\scripts\start-quantedge.ps1'
 #   $T = New-ScheduledTaskTrigger -Daily -At 9:00AM
 #   $S = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 12)
 #   Register-ScheduledTask -TaskName 'QuantEdge-AutoStart' -Action $A -Trigger $T -Settings $S -RunLevel Highest
 
 $ErrorActionPreference = 'Continue'
-$Root = 'C:\Users\vigne\Downloads\quantedge'
+$Root = 'D:\Projects\quantedge'
 $ServerDir = Join-Path $Root 'server'
 $LogDir = Join-Path $Root 'data\logs'
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }

@@ -3417,3 +3417,65 @@ code {
 .srp-item.s { color: var(--neon-green); }
 .srp-item b { font-weight: 800; }
 .srp-spot { color: var(--text-1); font-weight: 700; }
+
+/* ============ MASTER SPEC: MTF + Similarity + Backtest blocks ============ */
+.scc-mtf, .scc-history, .scc-backtest {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-mtf-head, .scc-history-head, .scc-backtest-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; color: var(--text-1); margin-bottom: 6px;
+    font-size: 10px; letter-spacing: 0.05em;
+}
+.scc-mtf-pct { font-size: 9.5px; }
+.scc-mtf-pct.pos { color: var(--neon-green); }
+.scc-mtf-pct.mid { color: var(--neon-amber, #ffb245); }
+.scc-mtf-pct.neg { color: var(--neon-red); }
+.scc-mtf-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+}
+.scc-mtf-cell {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 5px 0; border-radius: 3px;
+    background: var(--bg-3); border: 1px solid transparent;
+}
+.scc-mtf-cell.mtf-bull { background: rgba(0,208,156,0.08); }
+.scc-mtf-cell.mtf-bear { background: rgba(235,91,60,0.08); }
+.scc-mtf-cell.mtf-aligned { border-color: var(--neon-green); box-shadow: 0 0 4px var(--neon-green-glow); }
+.mtf-tf { font-size: 9px; color: var(--text-3); font-weight: 700; }
+.mtf-bias { font-size: 13px; font-weight: 800; margin-top: 1px; }
+.scc-mtf-cell.mtf-bull .mtf-bias { color: var(--neon-green); }
+.scc-mtf-cell.mtf-bear .mtf-bias { color: var(--neon-red); }
+.scc-mtf-cell.mtf-flat .mtf-bias { color: var(--text-3); }
+
+/* Historical similarity */
+.scc-history-row {
+    display: flex; gap: 14px; padding: 3px 0;
+    color: var(--text-2); flex-wrap: wrap;
+}
+.scc-history-row b { color: var(--text-1); font-weight: 700; }
+.scc-history-row b.pos { color: var(--neon-green); }
+.scc-history-row b.mid { color: var(--neon-amber, #ffb245); }
+.scc-history-row b.neg { color: var(--neon-red); }
+
+/* 10-year backtest stats grid */
+.scc-backtest-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px;
+}
+.scc-backtest-grid > div {
+    display: flex; flex-direction: column;
+}
+.bt-label {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-3); margin-bottom: 1px;
+}
+.scc-backtest-grid b {
+    font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.scc-backtest-grid b.pos { color: var(--neon-green); }
+.scc-backtest-grid b.mid { color: var(--neon-amber, #ffb245); }
+.scc-backtest-grid b.neg { color: var(--neon-red); }

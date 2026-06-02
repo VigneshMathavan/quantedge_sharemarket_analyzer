@@ -2505,6 +2505,62 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── MULTI-TIMEFRAME ALIGNMENT GRID (master spec) ── -->
+            ${sig.mtfAlignment ? `
+                <div class="scc-mtf">
+                    <div class="scc-mtf-head">
+                        ⏱ Multi-TF Alignment
+                        <span class="scc-mtf-pct ${sig.mtfAlignment.alignmentPct >= 70 ? 'pos' : sig.mtfAlignment.alignmentPct >= 50 ? 'mid' : 'neg'}">${sig.mtfAlignment.alignedCount}/${sig.mtfAlignment.totalTfs} aligned · ${sig.mtfAlignment.alignmentPct}%</span>
+                    </div>
+                    <div class="scc-mtf-grid">
+                        ${Object.values(sig.mtfAlignment.grid).map(g => {
+                            const cls = g.bias === 'BULL' ? 'mtf-bull' : g.bias === 'BEAR' ? 'mtf-bear' : 'mtf-flat';
+                            const aligned = g.aligned ? 'mtf-aligned' : '';
+                            return `<div class="scc-mtf-cell ${cls} ${aligned}" title="${g.tf} · ADX ${g.adx ?? '—'}">
+                                <span class="mtf-tf">${g.tf?.replace('minute','m').replace('day','D').replace('1m','1m').replace('60m','1h')}</span>
+                                <span class="mtf-bias">${g.bias === 'BULL' ? '↑' : g.bias === 'BEAR' ? '↓' : '—'}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- ── HISTORICAL SIMILARITY (master spec: live comparison engine) ── -->
+            ${sig.similarity && sig.similarity.matches > 0 ? `
+                <div class="scc-history">
+                    <div class="scc-history-head">📚 Historical Match</div>
+                    <div class="scc-history-row">
+                        <span><b>${sig.similarity.matches}</b> similar setups · avg ${sig.similarity.avgSimilarity}% match</span>
+                    </div>
+                    ${sig.similarity.matchesWithOutcomes > 0 ? `
+                        <div class="scc-history-row">
+                            <span>Outcomes: <b class="${sig.similarity.winRate >= 60 ? 'pos' : sig.similarity.winRate >= 45 ? 'mid' : 'neg'}">${sig.similarity.winRate}% win</b>
+                            (${sig.similarity.wins}W ${sig.similarity.losses}L of ${sig.similarity.matchesWithOutcomes})</span>
+                        </div>
+                        <div class="scc-history-row">
+                            ${sig.similarity.avgPnl != null ? `<span>Avg P&L <b class="${sig.similarity.avgPnl >= 0 ? 'pos' : 'neg'}">${sig.similarity.avgPnl >= 0 ? '+' : ''}₹${sig.similarity.avgPnl}</b></span>` : ''}
+                            ${sig.similarity.bestPnl != null ? `<span>Best <b class="pos">+₹${sig.similarity.bestPnl}</b></span>` : ''}
+                            ${sig.similarity.worstPnl != null ? `<span>Worst <b class="neg">₹${sig.similarity.worstPnl}</b></span>` : ''}
+                        </div>
+                    ` : `<div class="scc-history-row" style="color:var(--text-3);font-size:9.5px">No outcomes yet (similarity-only)</div>`}
+                </div>
+            ` : ''}
+
+            <!-- ── 10-YEAR BACKTEST STATS (master spec: backtest engine) ── -->
+            ${sig.backtestStats && sig.backtestStats.available ? `
+                <div class="scc-backtest">
+                    <div class="scc-backtest-head">📊 Strategy Backtest (10y)</div>
+                    <div class="scc-backtest-grid">
+                        <div><span class="bt-label">Trades</span><b>${sig.backtestStats.totalTrades}</b></div>
+                        <div><span class="bt-label">Win Rate</span><b class="${sig.backtestStats.winRate >= 55 ? 'pos' : sig.backtestStats.winRate >= 45 ? 'mid' : 'neg'}">${sig.backtestStats.winRate}%</b></div>
+                        <div><span class="bt-label">Profit Factor</span><b class="${sig.backtestStats.profitFactor >= 1.3 ? 'pos' : sig.backtestStats.profitFactor >= 1.0 ? 'mid' : 'neg'}">${sig.backtestStats.profitFactor ?? '—'}</b></div>
+                        <div><span class="bt-label">Sharpe</span><b class="${sig.backtestStats.sharpe >= 1.0 ? 'pos' : sig.backtestStats.sharpe >= 0.5 ? 'mid' : 'neg'}">${sig.backtestStats.sharpe}</b></div>
+                        <div><span class="bt-label">Expectancy</span><b class="${sig.backtestStats.expectancy >= 0 ? 'pos' : 'neg'}">₹${sig.backtestStats.expectancy}</b></div>
+                        <div><span class="bt-label">Max DD</span><b class="neg">₹${sig.backtestStats.maxDrawdown}</b></div>
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- ── PER-FACTOR CONFIDENCE BREAKDOWN (master-spec explainability) ── -->
             ${sig.factorScores ? `
                 <div class="scc-factors">
