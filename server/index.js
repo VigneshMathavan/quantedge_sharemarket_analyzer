@@ -415,7 +415,8 @@ app.post('/api/signals/confluence', async (req, res) => {
         //
         //  Tier label assigned to actionable so UI shows POTENTIAL/LIKELY/STRONG/ELITE.
         // ──────────────────────────────────────────────────────────────
-        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 35, 10));
+        // Default minScore floor lowered to 0 — God Mode default; client can raise.
+        const minScore = Math.max(0, parseInt(req.query.minScore || req.body.minScore || 0, 10));
         const firingCount = result.votes?.filter(v => v.fired).length || 0;
         const fcFavorable = forecast?.verdict === 'FAVORABLE';
         const regime = result.regime?.regime || '';
@@ -425,18 +426,20 @@ app.post('/api/signals/confluence', async (req, res) => {
             (!isCallSide && (regime === 'trending_down' || regime === 'TRENDING_BEAR' || regime === 'BREAKOUT'));
 
         const finalScore = approval?.finalScore || 0;
+        // POTENTIAL PASS — much wider now. The previous gates required 2+
+        // strategies OR ≥30% confluence OR regime alignment, which left
+        // legitimate single-strategy fires (esp. Momentum Burst) invisible.
+        // New rule: ANY firing strategy surfaces. Tier reflects quality.
         const potentialPass =
-            finalScore >= minScore ||
-            firingCount >= 2 ||
-            (firingCount >= 1 && fcFavorable) ||
-            (firingCount >= 1 && regimeAligned) ||
-            (result.confluenceScore || 0) >= 30;
+            firingCount >= 1 ||                              // any strategy fire surfaces
+            finalScore >= minScore ||                        // approval clears user threshold
+            (result.confluenceScore || 0) >= 20;             // dropped from 30
 
-        // Tier assignment for UI display
+        // Tier assignment — quality grade, not pass/fail
         let potentialTier = 'WEAK';
         if (firingCount >= 3 || finalScore >= 75) potentialTier = 'STRONG';
         else if (firingCount >= 2 || (firingCount >= 1 && fcFavorable) || finalScore >= 55) potentialTier = 'LIKELY';
-        else if (firingCount >= 1 && (regimeAligned || (result.confluenceScore || 0) >= 30)) potentialTier = 'POTENTIAL';
+        else if (firingCount >= 1) potentialTier = 'POTENTIAL';   // single strategy = POTENTIAL
         if (actionable) actionable.potentialTier = potentialTier;
 
         const passesGate = !approval || potentialPass;
