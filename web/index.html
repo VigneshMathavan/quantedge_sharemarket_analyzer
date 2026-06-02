@@ -82,6 +82,7 @@
         </div>
         <div class="clock" id="clock">--:--:--</div>
         <div class="god-mode-pill" id="god-mode-pill" title="God Mode: every signal surfaces, confidence shown on each. Lower the gate via Account → Edit settings.">⚡ GOD MODE</div>
+        <div class="pnl-pill" id="pnl-pill" title="Today's net P&amp;L from closed trades">📊 P&amp;L <span id="pnl-amount">₹0</span> <span class="pnl-count" id="pnl-count">0</span></div>
         <div class="event-pill" id="event-pill" title="Next macro event">
             <span class="event-icon">⚡</span>
             <span class="event-text" id="event-text">—</span>
@@ -143,6 +144,11 @@
                 <label class="ind-chip"><input type="checkbox" data-ind="oiwalls" checked><span>OI Walls</span></label>
                 <label class="ind-chip"><input type="checkbox" data-ind="patterns" checked><span>Patterns</span></label>
                 <label class="ind-chip"><input type="checkbox" data-ind="forecast" checked><span>AI Forecast</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="cvd" title="Cumulative Volume Delta — approximated from candle close direction × volume (Upstox doesn't expose true bid/ask trade tape)"><span>CVD</span></label>
+                <label class="ind-chip"><input type="checkbox" data-ind="footprint" title="Footprint / Spot Absorption — EDUCATIONAL ONLY. True footprint needs tick-level bid/ask data which Upstox public API does not provide. We show approximated buy/sell pressure from candle structure."><span>Footprint ℹ️</span></label>
+            </div>
+            <div style="font-size:9.5px; color:var(--text-3); padding:4px 6px 0; line-height:1.4">
+                <b>CVD / Footprint:</b> approximations only — Upstox public API doesn't expose tick-level bid/ask trade tape. For educational use.
             </div>
         </div>
 

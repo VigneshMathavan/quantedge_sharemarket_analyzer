@@ -2194,8 +2194,12 @@ async function refreshAIRationale() {
         //      up to 60s before flipping to idle. Lets the user read it.
         // ─────────────────────────────────────────────────────────────
         const a = data.actionable;
+        // Signature includes premium (rounded to ₹1) so the card re-renders
+        // when the live LTP moves even if side/strike/tier are unchanged.
+        // Previously we only dedupe'd on tier/score → user saw same stale
+        // premium for minutes on end.
         const sig = a
-            ? `${a.side}|${a.option?.strike}|${a.potentialTier}|${Math.round((data.approval?.finalScore ?? data.confluenceScore ?? 0) / 5) * 5}`
+            ? `${a.side}|${a.option?.strike}|${a.potentialTier}|${Math.round((data.approval?.finalScore ?? data.confluenceScore ?? 0) / 5) * 5}|${Math.round(a.option?.premium || 0)}`
             : null;
 
         if (sig) {
@@ -2468,7 +2472,14 @@ window.enterTrade = async function(sig) {
         });
         const data = await r.json();
         STATE.activeTrade = data.active;
-        toast('Trade entered — monitoring for exit signals', 'success');
+        const rp = data.entryRepriced;
+        if (rp && rp.driftPct > 2) {
+            // Significant drift between signal premium and live broker LTP —
+            // tell user we used live price so SL/T1/T2 reflect reality.
+            toast(`Entered @ ₹${rp.livePremium} (live LTP) · signal was ₹${rp.stalePremium} — repriced ${rp.driftPct > 0 ? 'with ' : ''}${rp.driftPct.toFixed(1)}% drift`, 'success');
+        } else {
+            toast('Trade entered — monitoring for exit signals', 'success');
+        }
         refreshTradeMonitor();
     } catch (e) {
         toast('Failed to enter trade: ' + e.message, 'error');
@@ -3011,6 +3022,30 @@ async function refreshHistory() {
 
         // Trade list
         const trades = data.trades || [];
+
+        // ── Today's P&L badge (topbar) ──
+        // Sum P&L only for trades closed TODAY in IST.
+        const istNow = new Date(Date.now() + (5*60+30) * 60000);
+        const istToday = istNow.toISOString().slice(0, 10);
+        let todayPnl = 0, todayCount = 0;
+        for (const t of trades) {
+            const tIst = new Date((t.exitTime || t.time || 0) + (5*60+30) * 60000);
+            if (tIst.toISOString().slice(0, 10) === istToday) {
+                todayPnl += (t.pnl || 0);
+                todayCount++;
+            }
+        }
+        const pill = document.getElementById('pnl-pill');
+        const amt = document.getElementById('pnl-amount');
+        const cnt = document.getElementById('pnl-count');
+        if (pill && amt && cnt) {
+            amt.textContent = (todayPnl >= 0 ? '+' : '') + fmtCurrency(todayPnl);
+            cnt.textContent = todayCount + ' tr';
+            pill.classList.remove('profit', 'loss');
+            if (todayPnl > 0) pill.classList.add('profit');
+            else if (todayPnl < 0) pill.classList.add('loss');
+        }
+
         if (trades.length === 0) {
             listEl.innerHTML = '<div class="history-empty">No trades yet this week.</div>';
             return;

@@ -664,10 +664,64 @@ app.get('/api/signals/multi-tf/:symbol', async (req, res) => {
 // ============================================================
 //  Active trade tracking + exit warnings
 // ============================================================
-app.post('/api/active-trade/enter', (req, res) => {
+app.post('/api/active-trade/enter', async (req, res) => {
     try {
-        const t = tracker.enter(req.body);
-        res.json({ ok: true, active: t });
+        const sig = req.body;
+        // ─────────────────────────────────────────────────────────────────
+        //  RE-PRICE AT ENTRY using LIVE broker LTP.
+        //
+        //  Signal premiums in the card may be 10-30s stale (from the last
+        //  rationale poll). On expiry day premiums can move 20%+ in 30s,
+        //  causing entries at fictional prices → instant SL hits when the
+        //  tracker checks current price vs stored entry.
+        //
+        //  Solution: at the moment of entry, fetch the live chain, pull the
+        //  actual LTP for the chosen (strike, type, expiry), use THAT as
+        //  the new entry premium. Scale SL/T1/T2 by the same percentage
+        //  ratios the signal originally proposed (so risk:reward stays
+        //  intact). User sees a toast confirming the live entry price.
+        // ─────────────────────────────────────────────────────────────────
+        if (sig?.option?.strike && sig?.symbol) {
+            try {
+                const liveChain = await provider.getOptionChain(sig.symbol);
+                const expectedType = sig.side === 'BUY_CALL' ? 'CE' : 'PE';
+                const row = liveChain.find(c =>
+                    c.strike === sig.option.strike &&
+                    c.type === expectedType &&
+                    (!sig.option.expiry || !c.expiry || c.expiry === sig.option.expiry)
+                );
+                if (row && row.ltp > 0) {
+                    const stalePrem = sig.option.premium;
+                    const livePrem  = row.ltp;
+                    const driftPct  = Math.abs((livePrem - stalePrem) / stalePrem) * 100;
+                    // Preserve SL/T1/T2 distance ratios from the signal
+                    const slPctDist = (sig.option.premiumSL - stalePrem) / stalePrem;   // negative
+                    const t1PctDist = (sig.option.premiumT1 - stalePrem) / stalePrem;   // positive
+                    const t2PctDist = (sig.option.premiumT2 - stalePrem) / stalePrem;   // positive
+                    sig.option = {
+                        ...sig.option,
+                        premium:    parseFloat(livePrem.toFixed(2)),
+                        premiumSL:  parseFloat((livePrem * (1 + slPctDist)).toFixed(2)),
+                        premiumT1:  parseFloat((livePrem * (1 + t1PctDist)).toFixed(2)),
+                        premiumT2:  parseFloat((livePrem * (1 + t2PctDist)).toFixed(2)),
+                        // Also use live IV/greeks from broker
+                        iv:    row.iv    ?? sig.option.iv,
+                        delta: row.delta ?? sig.option.delta,
+                        theta: row.theta ?? sig.option.theta,
+                        vega:  row.vega  ?? sig.option.vega,
+                        oi:    row.oi    ?? sig.option.oi
+                    };
+                    sig.entryRepriced = {
+                        stalePremium: stalePrem,
+                        livePremium: livePrem,
+                        driftPct: parseFloat(driftPct.toFixed(2)),
+                        repricedAt: Date.now()
+                    };
+                }
+            } catch (e) { console.error('[entry-reprice]', e.message); }
+        }
+        const t = tracker.enter(sig);
+        res.json({ ok: true, active: t, entryRepriced: sig.entryRepriced || null });
     } catch (e) {
         res.status(400).json({ error: e.message });
     }
