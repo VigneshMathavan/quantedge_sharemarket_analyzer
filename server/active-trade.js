@@ -61,18 +61,38 @@ class ActiveTradeTracker {
     // -------------------------------------------------------------------
     //
     // forecast (optional) = { pT1, pSL, pTimeout, verdict } from path-forecaster
-    evaluate({ candles, forecast = null }) {
+    evaluate({ candles, forecast = null, chain = null }) {
         if (!this.active) return null;
         const last = candles[candles.length - 1];
         const s = this.active;
         const isCall = s.side === 'BUY_CALL';
         const direction = isCall ? 1 : -1;
+        const expectedType = isCall ? 'CE' : 'PE';
 
-        // --- Premium estimate (delta-based + theta bleed) ---
+        // --- Current premium: use BROKER LTP from chain when available ---
+        // Previously this was a theoretical estimate (entry + spotMove×delta
+        // − theta bleed). That works for trend but disconnects from actual
+        // market — user saw ₹116 in app while broker showed ₹36. Now we
+        // pull live LTP for the exact (strike, type, expiry) when chain is
+        // passed in by the status endpoint.
+        let brokerPremium = null;
+        if (Array.isArray(chain) && chain.length) {
+            const row = chain.find(c =>
+                c.strike === s.option.strike &&
+                c.type === expectedType &&
+                (!s.option.expiry || !c.expiry || c.expiry === s.option.expiry)
+            );
+            if (row && typeof row.ltp === 'number' && row.ltp > 0) {
+                brokerPremium = row.ltp;
+            }
+        }
         const spotMove = (last.close - s.spot.entry) * direction;
         const minutesElapsed = (Date.now() - s.time) / 60000;
         const thetaBleed = s.option.premium * 0.0008 * minutesElapsed;
-        const premEstimate = Math.max(0.5, s.option.premium + spotMove * s.option.delta - thetaBleed);
+        const theoreticalPremium = Math.max(0.5, s.option.premium + spotMove * s.option.delta - thetaBleed);
+        // Broker LTP wins when present; theoretical is a fallback only
+        const premEstimate = brokerPremium ?? theoreticalPremium;
+        const premiumSource = brokerPremium != null ? 'broker' : 'estimated';
 
         // --- P&L ---
         const lotSize = s.option.lotSize;
@@ -245,6 +265,8 @@ class ActiveTradeTracker {
 
         return {
             premEstimate: parseFloat(premEstimate.toFixed(2)),
+            premiumSource,                              // 'broker' (live LTP) or 'estimated' (theoretical)
+            theoreticalPremium: parseFloat(theoreticalPremium.toFixed(2)),
             pnlEstimate: Math.round(pnlEstimate),
             pnlPct: parseFloat(pnlPct.toFixed(1)),
             minutesInTrade: Math.round(minutesElapsed),

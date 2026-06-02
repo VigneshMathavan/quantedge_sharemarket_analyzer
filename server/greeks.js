@@ -73,13 +73,21 @@ export function impliedVol({ S, K, T, r = 0.07, marketPrice, right = 'CE' }) {
     return iv;
 }
 
-// Next weekly expiry for NIFTY (Thursday) / BANKNIFTY (Wednesday) / FINNIFTY (Tuesday).
-// SENSEX expires Friday. Returns ms timestamp at 15:30 IST.
+// Weekly expiry day-of-week — updated for 2025/2026 NSE+BSE schedules.
+// Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6.
+//   • NIFTY: moved Thu → Tue in Apr 2025 (was Thu since 2003).
+//   • BANKNIFTY / FINNIFTY: weekly expiry discontinued Nov 2024 — monthly only.
+//     Keeping placeholder DOW so daysToExpiry doesn't return Infinity.
+//   • SENSEX: BSE moved Fri → Thu in Nov 2024.
+// IMPORTANT: this lookup is a fallback. Prefer reading actual expiry from
+// broker chain (active.option.expiry) when available — that's authoritative
+// and survives any future schedule changes without code edits.
 const EXPIRY_DOW = {
-    NIFTY: 4,        // Thursday
-    BANKNIFTY: 3,    // Wed (changed Sep 2024 — now monthly only; keeping weekly placeholder)
-    FINNIFTY: 2,     // Tue
-    SENSEX: 5        // Fri (BSE weekly)
+    NIFTY: 2,        // Tuesday (current)
+    BANKNIFTY: 3,    // Wed placeholder (no weekly)
+    FINNIFTY: 2,     // Tue (no weekly, falls through to monthly)
+    SENSEX: 4,       // Thursday (current)
+    BANKEX: 1        // Monday
 };
 export function nextExpiryMs(symbol = 'NIFTY', fromMs = Date.now()) {
     const targetDow = EXPIRY_DOW[symbol.toUpperCase()] || 4;

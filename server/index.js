@@ -741,18 +741,36 @@ app.post('/api/active-trade/status', async (req, res) => {
             });
         } catch (e) { /* non-fatal */ }
 
-        const monitor = tracker.evaluate({ candles, forecast });
+        // Fetch live chain so the tracker can pull the broker's actual LTP for
+        // the active option (not a theoretical estimate). This is what makes
+        // the "Current Premium" match what user sees in Kotak Neo / Dhan.
+        let liveChain = null;
+        try { liveChain = await provider.getOptionChain(active.symbol); } catch (_) {}
 
-        // Live Greeks recompute (Δ / Γ / Θ / V)
+        const monitor = tracker.evaluate({ candles, forecast, chain: liveChain });
+
+        // Live Greeks recompute (Δ / Γ / Θ / V).
+        // Prefer the trade's stored expiry (broker-authoritative) over the
+        // hardcoded weekly DOW lookup — NSE has changed NIFTY expiry day
+        // twice in the last 18 months and our table can lag reality.
         let greeks = null;
         try {
             const spot = candles[candles.length - 1].close;
             const iv = (active.option.iv || 15) / 100;
-            const T = Math.max(1 / (365 * 24), daysToExpiry(active.symbol) / 365);
+            let dte;
+            if (active.option.expiry) {
+                const expMs = new Date(active.option.expiry + 'T15:30:00+05:30').getTime();
+                dte = Math.max(0, (expMs - Date.now()) / (24 * 60 * 60 * 1000));
+            } else {
+                dte = daysToExpiry(active.symbol);
+            }
+            const T = Math.max(1 / (365 * 24), dte / 365);
             greeks = blackScholes({
                 S: spot, K: active.option.strike, T, iv,
                 right: active.option.right
             });
+            greeks.dte = parseFloat(dte.toFixed(2));
+            greeks.expiryUsed = active.option.expiry || null;
         } catch (e) {}
 
         // Gamma blast detector — fires when DTE→0 + ATM + accelerating
