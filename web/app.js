@@ -757,36 +757,90 @@ function onTick(tick) {
             const bucket = Math.floor(nowSec / tfSec) * tfSec;
             const last = STATE.candles[STATE.candles.length - 1];
             if (bucket === last.time) {
-                // same bucket → mutate
+                // same bucket → mutate forming candle
                 last.close = tick.price;
                 if (tick.price > last.high) last.high = tick.price;
                 if (tick.price < last.low) last.low = tick.price;
                 STATE.candleSeries.update({ time: last.time, open: last.open, high: last.high, low: last.low, close: last.close });
             } else if (bucket > last.time) {
-                // candle boundary crossed → forge a new candle from this tick
+                // candle boundary crossed → forge a new candle from this tick.
+                // Keep BOTH series in sync so volume bars don't lag the price chart.
                 const fresh = { time: bucket, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: 0 };
                 STATE.candles.push(fresh);
                 STATE.candleSeries.update(fresh);
+                if (STATE.volumeSeries) {
+                    STATE.volumeSeries.update({ time: bucket, value: 0, color: 'rgba(0,208,156,0.4)' });
+                }
+                // Trim memory — keep last 250 candles
+                if (STATE.candles.length > 250) STATE.candles = STATE.candles.slice(-250);
             }
             // bucket < last.time (stale tick) → ignore
         }
     }
 }
 
-// Periodic candle refresh — every 4s for true near-real-time anchoring.
-// Server cache makes this ~5ms response so it doesn't load the network.
+// Periodic candle refresh — INCREMENTAL (no setData rebuild).
+//
+// Previous version called setData() on every poll, which rebuilt the whole
+// 200-candle series + indicators. That stomped on live tick updates: any
+// high/low/close written by a WS tick in the last 4s was overwritten with
+// server data that might be 1-2 seconds behind. The result was the "candle
+// resets / disappears / I need to refresh" feeling.
+//
+// New behavior:
+//   • Skip the poll entirely if a WS tick arrived in the last 3s — ticks
+//     are the authoritative source for the forming bar.
+//   • If a tick is older than 3s OR the server has a NEW bar we don't have,
+//     append/update incrementally with .update() — never setData().
+//   • Only re-fit + re-run indicators when a NEW bar appears, not on every
+//     poll. Saves ~80% of chart redraws.
+STATE._lastTickAge = () => {
+    const last = STATE.lastPrices[STATE.selectedSymbol];
+    return last?.time ? Date.now() - last.time : Infinity;
+};
 setInterval(async () => {
-    if (!STATE.candles.length) return;
+    if (!STATE.candles.length || !STATE.candleSeries) return;
+    // Skip if WS ticks are fresh — they're already updating the forming bar
+    if (STATE._lastTickAge() < 3000) return;
     try {
         const candles = await STATE.market.getHistorical(STATE.selectedSymbol, STATE.selectedTF, 200);
-        if (candles.length && candles[candles.length - 1].time !== STATE.candles[STATE.candles.length - 1].time) {
-            STATE.candles = candles;
-            STATE.candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
-            STATE.volumeSeries.setData(candles.map(c => ({ time: c.time, value: c.volume, color: c.close >= c.open ? 'rgba(0,208,156,0.4)' : 'rgba(235,91,60,0.4)' })));
-            updateChartIndicators();
+        if (!candles?.length) return;
+        const localLast = STATE.candles[STATE.candles.length - 1];
+        const serverLast = candles[candles.length - 1];
+        const newBar = serverLast.time > localLast.time;
+        const sameBar = serverLast.time === localLast.time;
+
+        if (newBar) {
+            // Append every bar the server has that we don't (usually just 1).
+            const localTimes = new Set(STATE.candles.map(c => c.time));
+            for (const c of candles) {
+                if (!localTimes.has(c.time)) {
+                    STATE.candles.push(c);
+                    STATE.candleSeries.update({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close });
+                    STATE.volumeSeries.update({ time: c.time, value: c.volume, color: c.close >= c.open ? 'rgba(0,208,156,0.4)' : 'rgba(235,91,60,0.4)' });
+                }
+            }
+            // Trim local to last 200 to match server window
+            if (STATE.candles.length > 200) STATE.candles = STATE.candles.slice(-200);
+            updateChartIndicators();   // only on new bar
+        } else if (sameBar) {
+            // Only patch local last if server has FRESHER OHLC AND no recent tick
+            // touched it (already gated above with _lastTickAge < 3s).
+            const patched = {
+                time: localLast.time,
+                open: localLast.open,                                    // open is locked at bar start
+                high: Math.max(localLast.high, serverLast.high),
+                low:  Math.min(localLast.low,  serverLast.low),
+                close: serverLast.close
+            };
+            // Skip if nothing actually changed (avoid pointless redraw)
+            if (patched.high !== localLast.high || patched.low !== localLast.low || patched.close !== localLast.close) {
+                STATE.candles[STATE.candles.length - 1] = patched;
+                STATE.candleSeries.update(patched);
+            }
         }
-    } catch (e) {}
-}, 4000);   // 4s — keeps chart fresh while live ticks fill the gap between
+    } catch (e) { /* network blip — next poll will catch up */ }
+}, 5000);  // 5s base cadence — only fires when ticks are stale (>3s old)
 
 // Trigger signal check every 2s — God Mode: fire fast, train hard.
 setInterval(triggerSignalCheck, 2000);
