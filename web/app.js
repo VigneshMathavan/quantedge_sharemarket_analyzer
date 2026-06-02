@@ -2291,6 +2291,9 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
     const isCall = sig.side === 'BUY_CALL';
     const cls = isCall ? '' : 'put';
     const score = approval?.finalScore ?? sig.confluenceScore ?? 0;
+    // Tier from server's potential-pass classification
+    const tier = (sig.potentialTier || 'POTENTIAL').toUpperCase();
+    const tierCls = tier.toLowerCase();   // -> .scc-tier-pill.potential / .likely / .strong / .elite
     // Expiry Day Elite block — show prominently if institutional tier
     const eliteBlock = expiry?.isExpiry ? `
         <div class="elite-block tier-${(expiry.tier || 'watch').toLowerCase()}">
