@@ -340,22 +340,23 @@
             <div id="trade-checklist" class="checklist-box"></div>
         </div>
 
-        <!-- Cross-Index Opportunities — master-spec cross-index intelligence panel -->
-        <details class="sp-collapse" open>
-            <summary>🌐 Cross-Index Scan <span class="week-label" id="xi-ts">—</span></summary>
+        <!-- Cross-Index Opportunities — always expanded -->
+        <div class="sp-section">
+            <div class="sp-section-head">🌐 Cross-Index Scan <span class="week-label" id="xi-ts">—</span></div>
             <div id="xi-grid" class="xi-grid">
                 <div class="xi-empty">Scanning all 4 indices…</div>
             </div>
-        </details>
+        </div>
 
-        <!-- Recent Signals + Week History stay collapsed by default to save vertical space -->
-        <details class="sp-collapse">
-            <summary>📜 Recent Signals</summary>
+        <!-- Recent Signals — always expanded -->
+        <div class="sp-section">
+            <div class="sp-section-head">📜 Recent Signals</div>
             <div id="recent-signals" class="recent-list"></div>
-        </details>
+        </div>
 
-        <details class="sp-collapse">
-            <summary>📊 This Week's Trades <span class="week-label" id="history-week-label">—</span></summary>
+        <!-- This Week's Trades — always expanded -->
+        <div class="sp-section">
+            <div class="sp-section-head">📊 This Week's Trades <span class="week-label" id="history-week-label">—</span></div>
             <div class="history-stats" id="history-stats">
                 <div class="hist-stat"><span>TRADES</span><b id="hist-count">0</b></div>
                 <div class="hist-stat"><span>WIN RATE</span><b id="hist-wr">—</b></div>
@@ -366,7 +367,7 @@
                 <div class="history-empty">No trades yet this week.</div>
             </div>
             <button class="ghost-btn history-reset" id="history-reset" title="Clear this week's history">↻ Reset Week</button>
-        </details>
+        </div>
     </aside>
 </div>
 

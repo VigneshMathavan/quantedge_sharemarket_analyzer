@@ -2516,6 +2516,75 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── MASTER SIGNAL QUALITY (Priority 14 + 10) ── -->
+            ${sig.signalQuality ? `
+                <div class="scc-quality grade-${sig.signalQuality.grade.toLowerCase().replace('+','plus')}">
+                    <div class="scc-quality-head">
+                        🎯 Signal Quality
+                        <span class="scc-quality-grade">${sig.signalQuality.grade}</span>
+                        <span class="scc-quality-score">${sig.signalQuality.finalScore}/100</span>
+                    </div>
+                    <div class="scc-quality-failure">
+                        ⚠️ Failure prob: <b>${sig.signalQuality.failureProbability}%</b>
+                        ${sig.signalQuality.failureReasons?.length ?
+                            `· ${sig.signalQuality.failureReasons.slice(0,2).join(' · ')}` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- ── EXPECTED MOVE (Priority 9) ── -->
+            ${sig.expectedMove?.available ? `
+                <div class="scc-expected">
+                    <div class="scc-expected-head">📐 Expected Move <span class="scc-expected-n">${sig.expectedMove.samples} samples · ${sig.expectedMove.regime}</span></div>
+                    <div class="scc-expected-row">
+                        <span>Conservative <b>${sig.expectedMove.movePct.conservative >= 0 ? '+' : ''}${sig.expectedMove.movePct.conservative}%</b></span>
+                        <span>Average <b>${sig.expectedMove.movePct.average >= 0 ? '+' : ''}${sig.expectedMove.movePct.average}%</b></span>
+                        <span>Aggressive <b>${sig.expectedMove.movePct.aggressive >= 0 ? '+' : ''}${sig.expectedMove.movePct.aggressive}%</b></span>
+                    </div>
+                    ${sig.expectedMove.avgDurationMin ? `<div class="scc-expected-dur">Avg duration: ${sig.expectedMove.avgDurationMin} min · win rate ${sig.expectedMove.winRate}%</div>` : ''}
+                </div>
+            ` : ''}
+
+            <!-- ── PREMIUM EXPLOSION DETECTOR (Priority 7) ── -->
+            ${sig.premiumExplosion?.available && sig.premiumExplosion.probability >= 55 ? `
+                <div class="scc-explode verdict-${sig.premiumExplosion.verdict.toLowerCase()}">
+                    <div class="scc-explode-head">
+                        💥 Premium Explosion
+                        <span class="scc-explode-prob">${sig.premiumExplosion.probability}%</span>
+                    </div>
+                    <div class="scc-explode-verdict">${sig.premiumExplosion.verdict.replace(/_/g,' ')} · expected ${sig.premiumExplosion.expectedMagnitudePct}%+ move</div>
+                    ${sig.premiumExplosion.contributors?.length ? `<div class="scc-explode-contrib">
+                        ${sig.premiumExplosion.contributors.slice(0,4).map(c => `<span>${c.name} <b>+${c.boost}</b></span>`).join('')}
+                    </div>` : ''}
+                </div>
+            ` : ''}
+
+            <!-- ── IV FORECAST (Priority 6) ── -->
+            ${sig.ivForecast?.available ? `
+                <div class="scc-iv iv-${sig.ivForecast.verdict.toLowerCase().replace(/_/g,'-')}">
+                    <div class="scc-iv-head">
+                        🌡 IV Forecast
+                        <span class="scc-iv-pct">${sig.ivForecast.expansionProbability}% expand · ${sig.ivForecast.compressionProbability}% compress</span>
+                    </div>
+                    <div class="scc-iv-detail">
+                        ATM IV ${sig.ivForecast.atmIV}% · HV ${sig.ivForecast.historicalVol}% (ratio ${sig.ivForecast.ivHvRatio})
+                        ${sig.ivForecast.expectedPremiumImpactPct !== 0 ? `· premium ${sig.ivForecast.expectedPremiumImpactPct >= 0 ? '+' : ''}${sig.ivForecast.expectedPremiumImpactPct}%` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- ── CROSS-INDEX LEADERSHIP (Priority 12) ── -->
+            ${sig.leadership?.directionalLeader ? `
+                <div class="scc-leader confirm-${sig.leadership.confirmation.toLowerCase()}">
+                    <div class="scc-leader-head">🧭 Cross-Index Leadership · ${sig.leadership.confirmation}</div>
+                    <div class="scc-leader-row">
+                        Leader: <b>${sig.leadership.directionalLeader.symbol}</b>
+                        (${sig.leadership.directionalLeader.score >= 0 ? '+' : ''}${sig.leadership.directionalLeader.score})
+                        ${sig.leadership.alignedWithLeader ? '· ✓ aligned with current' : '· ✗ NOT aligned'}
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- ── OI FLOW ANALYTICS (master spec: long buildup / short cover etc) ── -->
             ${sig.oiFlow?.available && sig.oiFlow.verdict !== 'NEUTRAL' ? `
                 <div class="scc-oiflow ${sig.oiFlow.supportsCall ? 'flow-bull' : sig.oiFlow.supportsPut ? 'flow-bear' : 'flow-neutral'}">

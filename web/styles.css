@@ -3575,3 +3575,127 @@ code {
 }
 .xi-tag.pos { background: rgba(0,208,156,0.18); color: var(--neon-green); }
 .xi-tag.neg { background: rgba(235,91,60,0.18); color: var(--neon-red); }
+
+/* Always-expanded sidebar sections (replaced <details> collapsibles) */
+.sp-section {
+    margin-top: 12px;
+}
+.sp-section-head {
+    font-family: var(--font-mono);
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-2);
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.sp-section-head .week-label {
+    font-size: 9.5px; font-weight: 600; color: var(--text-3);
+    text-transform: none; letter-spacing: 0;
+}
+
+/* ============ MASTER OPTION BUYING INTELLIGENCE LAYER ============ */
+/* P14 Signal Quality grade badge */
+.scc-quality {
+    margin-top: 10px; padding: 10px 12px;
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    border-radius: 3px; background: var(--bg-2);
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-quality.grade-aplus { border-left-color: #ffd700; background: rgba(255,215,0,0.05); }
+.scc-quality.grade-a { border-left-color: var(--neon-green); background: rgba(0,208,156,0.05); }
+.scc-quality.grade-b { border-left-color: #4d7dff; }
+.scc-quality.grade-c { border-left-color: var(--neon-amber, #ffb245); }
+.scc-quality.grade-d, .scc-quality.grade-f { border-left-color: var(--neon-red); }
+.scc-quality-head {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 800; font-size: 11px; color: var(--text-1);
+}
+.scc-quality-grade {
+    font-size: 18px; font-weight: 900; margin-left: auto;
+    padding: 0 10px; border-radius: 3px; line-height: 1.4;
+    background: var(--bg-3);
+}
+.scc-quality.grade-aplus .scc-quality-grade { background: #ffd700; color: #000; }
+.scc-quality.grade-a .scc-quality-grade { background: var(--neon-green); color: var(--bg-base); }
+.scc-quality.grade-b .scc-quality-grade { background: #4d7dff; color: #fff; }
+.scc-quality.grade-c .scc-quality-grade { background: var(--neon-amber, #ffb245); color: #000; }
+.scc-quality.grade-d .scc-quality-grade, .scc-quality.grade-f .scc-quality-grade { background: var(--neon-red); color: #fff; }
+.scc-quality-score { font-size: 13px; font-weight: 800; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.scc-quality-failure {
+    margin-top: 5px; font-size: 10px; color: var(--text-2);
+}
+.scc-quality-failure b { color: var(--neon-red); }
+
+/* P9 Expected Move */
+.scc-expected {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid #4d7dff; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-expected-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 10px; color: var(--text-1);
+    margin-bottom: 5px;
+}
+.scc-expected-n { font-size: 9px; color: var(--text-3); font-weight: 600; }
+.scc-expected-row { display: flex; gap: 14px; padding: 2px 0; color: var(--text-2); }
+.scc-expected-row b { color: var(--text-1); font-weight: 700; font-variant-numeric: tabular-nums; }
+.scc-expected-dur { font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+
+/* P7 Premium Explosion */
+.scc-explode {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(255,178,69,0.08); border: 1px solid var(--neon-amber, #ffb245);
+    border-left: 3px solid var(--neon-amber, #ffb245); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-explode.verdict-explosion_likely { background: rgba(255,215,0,0.10); border-color: #ffd700; }
+.scc-explode-head {
+    display: flex; justify-content: space-between;
+    font-weight: 800; font-size: 11px; color: var(--text-1);
+}
+.scc-explode-prob {
+    font-size: 14px; font-weight: 900; color: #ffd700;
+    font-variant-numeric: tabular-nums;
+}
+.scc-explode-verdict { font-size: 10px; color: var(--text-1); margin-top: 3px; text-transform: capitalize; }
+.scc-explode-contrib {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+    font-size: 9px;
+}
+.scc-explode-contrib span {
+    padding: 2px 6px; background: var(--bg-3); border-radius: 2px;
+    color: var(--text-2);
+}
+.scc-explode-contrib b { color: var(--neon-green); font-weight: 800; }
+
+/* P6 IV Forecast */
+.scc-iv {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--text-3); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-iv.iv-iv-expansion-likely { border-left-color: var(--neon-green); }
+.scc-iv.iv-iv-compression-likely { border-left-color: var(--neon-red); }
+.scc-iv-head {
+    display: flex; justify-content: space-between;
+    font-weight: 800; font-size: 10px; color: var(--text-1);
+}
+.scc-iv-pct { font-size: 9.5px; color: var(--text-2); font-weight: 700; }
+.scc-iv-detail { font-size: 9.5px; color: var(--text-3); margin-top: 3px; }
+
+/* P12 Cross-Index Leadership */
+.scc-leader {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--text-3); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-leader.confirm-strong { border-left-color: var(--neon-green); background: rgba(0,208,156,0.04); }
+.scc-leader.confirm-conflicting { border-left-color: var(--neon-red); background: rgba(235,91,60,0.04); }
+.scc-leader-head { font-weight: 800; font-size: 10px; color: var(--text-1); margin-bottom: 3px; }
+.scc-leader-row { font-size: 10px; color: var(--text-2); }
+.scc-leader-row b { color: var(--text-1); }

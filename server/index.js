@@ -34,6 +34,11 @@ import { trainWeights, getCurrentWeights, applyLearnedWeights } from './factor-l
 import { analyzeOIFlow } from './oi-flow.js';
 import { buildEquityCurve } from './equity-curve.js';
 import { scanAllIndices } from './multi-index-scanner.js';
+import { computeExpectedMove } from './expected-move.js';
+import { computeCrossIndexLeadership } from './cross-index-leadership.js';
+import { forecastIV } from './iv-forecast.js';
+import { detectPremiumExplosion } from './premium-explosion.js';
+import { computeSignalQuality } from './signal-quality.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -386,22 +391,30 @@ app.get('/api/discovery/stock/:name', async (req, res) => {
 //  Resets at Monday 00:00 IST (old week auto-archived to data/archive/)
 // ============================================================
 app.get('/api/history/week', async (req, res) => {
-    // Merge in-memory trades with SQLite-backed history so the user sees
-    // EVERYTHING even after server restarts. SQLite is the durable source
-    // of truth; in-memory is the fast hot cache.
-    let merged = history.list();
+    // SQLite is the AUTHORITATIVE source of truth — it survives restarts
+    // and reflects any direct corrections. In-memory history fills gaps
+    // only when SQLite doesn't have a trade. Flipping this priority was
+    // critical: a manually-corrected SQLite trade was being overridden
+    // by the stale in-memory copy → user saw wrong P&L even after fix.
+    let merged = [];
     try {
         const { listTrades } = await import('./db.js');
         const weekStartMs = Date.now() - 7 * 86400 * 1000;
         const dbTrades = listTrades({ since: weekStartMs });
+        const memTrades = history.list();
         const byId = {};
-        for (const t of merged) byId[t.id || t.time] = t;
+        // SEED with in-memory (so we get any that aren't in SQLite yet)
+        for (const t of memTrades) byId[t.id || t.time] = t;
+        // OVERRIDE with SQLite — durable source of truth always wins
         for (const t of dbTrades) {
             const k = t.id || t.time;
-            if (!byId[k]) byId[k] = t;
+            byId[k] = t;
         }
         merged = Object.values(byId).sort((a, b) => (a.time || 0) - (b.time || 0));
-    } catch (e) { /* db optional */ }
+    } catch (e) {
+        console.error('[history/week] merge failed:', e.message);
+        merged = history.list();
+    }
     res.json({
         summary: history.summary(),
         trades: merged
@@ -537,6 +550,71 @@ app.post('/api/signals/confluence', async (req, res) => {
                         priceDirection5m: dir5m
                     });
                 } catch (e) { console.error('[oi-flow]', e.message); }
+
+                // ── MASTER-SPEC OPTION BUYING INTELLIGENCE LAYER ──
+                // All additive — none of these modify existing strategy logic.
+
+                // P9: Expected Move Engine (from historical journal)
+                try {
+                    actionable.expectedMove = computeExpectedMove({
+                        symbol, side: result.side,
+                        regime: result.regime?.regime,
+                        candleClose: candles[candles.length - 1].close
+                    });
+                } catch (e) { console.error('[expected-move]', e.message); }
+
+                // P12: Cross-Index Leadership
+                try {
+                    actionable.leadership = await computeCrossIndexLeadership({
+                        provider, side: result.side, currentSymbol: symbol
+                    });
+                } catch (e) { console.error('[leadership]', e.message); }
+
+                // P6: IV Expansion / Compression Forecast
+                try {
+                    actionable.ivForecast = forecastIV({
+                        params: actionable.parameters,
+                        chain: sharedChain,
+                        eventGate
+                    });
+                } catch (e) { console.error('[iv-forecast]', e.message); }
+
+                // P7: Premium Explosion Detector
+                try {
+                    let gb = null;
+                    try {
+                        gb = detectGammaBlast({
+                            candles, symbol,
+                            strike: actionable.option?.strike,
+                            right: actionable.option?.right,
+                            iv: (actionable.option?.iv || 15) / 100,
+                            spotNow: candles[candles.length - 1].close,
+                            side: result.side
+                        });
+                    } catch {}
+                    actionable.premiumExplosion = detectPremiumExplosion({
+                        params: actionable.parameters,
+                        oiFlow: actionable.oiFlow,
+                        leadership: actionable.leadership,
+                        gammaBlast: gb,
+                        side: result.side
+                    });
+                } catch (e) { console.error('[premium-explosion]', e.message); }
+
+                // P14 + P10: Signal Quality Score (A+ to F) + Failure Predictor
+                try {
+                    actionable.signalQuality = computeSignalQuality({
+                        confluenceScore: result.confluenceScore,
+                        factorScores: actionable.factorScores,
+                        similarity: actionable.similarity,
+                        mtfAlignment: actionable.mtfAlignment,
+                        oiFlow: actionable.oiFlow,
+                        ivForecast: actionable.ivForecast,
+                        premiumExplosion: actionable.premiumExplosion,
+                        leadership: actionable.leadership,
+                        params: actionable.parameters
+                    });
+                } catch (e) { console.error('[signal-quality]', e.message); }
             }
         }
 
