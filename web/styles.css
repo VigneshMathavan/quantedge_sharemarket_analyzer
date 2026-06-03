@@ -3699,3 +3699,98 @@ code {
 .scc-leader-head { font-weight: 800; font-size: 10px; color: var(--text-1); margin-bottom: 3px; }
 .scc-leader-row { font-size: 10px; color: var(--text-2); }
 .scc-leader-row b { color: var(--text-1); }
+
+/* ============ AI MARKET NARRATIVE + RISK + EXIT + INSTITUTIONAL ============ */
+.scc-narrative {
+    margin-top: 10px; padding: 10px 12px;
+    background: linear-gradient(135deg, rgba(77,125,255,0.08), rgba(0,208,156,0.06));
+    border: 1px solid rgba(77,125,255,0.4);
+    border-left: 3px solid #4d7dff; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 11px;
+}
+.scc-narrative-one {
+    font-weight: 800; color: var(--text-1);
+    line-height: 1.4;
+}
+.scc-narrative-details {
+    margin-top: 8px; font-size: 10px;
+}
+.scc-narrative-details summary {
+    cursor: pointer; color: var(--text-3);
+    user-select: none; padding: 2px 0;
+}
+.scc-narrative-details summary:hover { color: var(--text-1); }
+.scc-narrative-full {
+    margin-top: 6px; padding: 8px 10px;
+    background: var(--bg-3); border-radius: 2px;
+    line-height: 1.55; color: var(--text-2);
+}
+.scc-narrative-full b { color: var(--text-1); }
+
+/* Live Risk */
+.scc-risk {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--text-3); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-risk.risk-low      { border-left-color: var(--neon-green); background: rgba(0,208,156,0.04); }
+.scc-risk.risk-medium   { border-left-color: #4d7dff; }
+.scc-risk.risk-high     { border-left-color: var(--neon-amber, #ffb245); background: rgba(255,178,69,0.05); }
+.scc-risk.risk-extreme  { border-left-color: var(--neon-red); background: rgba(235,91,60,0.08); }
+.scc-risk-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 11px; color: var(--text-1);
+}
+.scc-risk-score { font-variant-numeric: tabular-nums; }
+.scc-risk-rec {
+    margin-top: 3px; font-size: 10px; font-weight: 700;
+    color: var(--text-1);
+}
+.scc-risk-reasons {
+    margin-top: 3px; font-size: 9.5px; color: var(--text-3);
+}
+
+/* Exit Intelligence */
+.scc-exit {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--neon-green); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-exit-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 10px; color: var(--text-1); margin-bottom: 5px;
+}
+.scc-exit-n { font-size: 9px; color: var(--text-3); font-weight: 600; }
+.scc-exit-probs {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    padding: 3px 0;
+}
+.exit-prob {
+    text-align: center; padding: 4px 0; border-radius: 2px;
+    background: var(--bg-3); font-size: 9.5px;
+}
+.exit-prob.t1, .exit-prob.t2 { background: rgba(0,208,156,0.10); }
+.exit-prob.sl { background: rgba(235,91,60,0.10); }
+.exit-prob b { display: block; color: var(--text-1); font-size: 11px; font-weight: 800; margin-top: 1px; }
+.exit-prob.t1 b, .exit-prob.t2 b { color: var(--neon-green); }
+.exit-prob.sl b { color: var(--neon-red); }
+.scc-exit-hold { font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+.scc-exit-rec { font-size: 10px; color: var(--text-1); margin-top: 4px; font-weight: 600; }
+
+/* Institutional Activity */
+.scc-inst {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-inst.inst-bullish { border-left: 3px solid var(--neon-green); background: rgba(0,208,156,0.06); }
+.scc-inst.inst-bearish { border-left: 3px solid var(--neon-red); background: rgba(235,91,60,0.06); }
+.scc-inst-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 11px; color: var(--text-1);
+}
+.scc-inst-conf { font-size: 9.5px; color: var(--text-2); }
+.scc-inst-signals { margin-top: 4px; font-size: 9.5px; color: var(--text-2); line-height: 1.55; }

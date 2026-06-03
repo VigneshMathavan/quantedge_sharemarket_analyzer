@@ -2516,6 +2516,57 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── AI MARKET NARRATIVE — plain-English signal story (top of card) ── -->
+            ${sig.narrative ? `
+                <div class="scc-narrative">
+                    <div class="scc-narrative-one">${sig.narrative.oneLiner}</div>
+                    <details class="scc-narrative-details">
+                        <summary>Full reasoning</summary>
+                        <div class="scc-narrative-full">${sig.narrative.markdown.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>
+                    </details>
+                </div>
+            ` : ''}
+
+            <!-- ── LIVE RISK ENGINE ── -->
+            ${sig.liveRisk ? `
+                <div class="scc-risk risk-${sig.liveRisk.level.toLowerCase()}">
+                    <div class="scc-risk-head">
+                        🛡 Live Risk: <b>${sig.liveRisk.level}</b>
+                        <span class="scc-risk-score">${sig.liveRisk.score}/100</span>
+                    </div>
+                    <div class="scc-risk-rec">${sig.liveRisk.recommendation}</div>
+                    ${sig.liveRisk.reasons?.length ? `<div class="scc-risk-reasons">${sig.liveRisk.reasons.slice(0,3).map(r => `• ${r}`).join(' ')}</div>` : ''}
+                </div>
+            ` : ''}
+
+            <!-- ── EXIT INTELLIGENCE — TP/SL probability + holding time ── -->
+            ${sig.exitIntel?.available ? `
+                <div class="scc-exit">
+                    <div class="scc-exit-head">🚪 Exit Intelligence <span class="scc-exit-n">${sig.exitIntel.samples} historical</span></div>
+                    <div class="scc-exit-probs">
+                        <span class="exit-prob t1">T1 <b>${sig.exitIntel.probabilities.t1Hit}%</b></span>
+                        <span class="exit-prob t2">T2 <b>${sig.exitIntel.probabilities.t2Hit}%</b></span>
+                        <span class="exit-prob sl">SL <b>${sig.exitIntel.probabilities.slHit}%</b></span>
+                        <span class="exit-prob to">Timeout <b>${sig.exitIntel.probabilities.timeout}%</b></span>
+                    </div>
+                    <div class="scc-exit-hold">
+                        Hold: median ${sig.exitIntel.holdingTime.medianMin ?? '—'}m · 75th pct ${sig.exitIntel.holdingTime.p75Min ?? '—'}m
+                    </div>
+                    <div class="scc-exit-rec">💡 ${sig.exitIntel.recommendation}</div>
+                </div>
+            ` : ''}
+
+            <!-- ── INSTITUTIONAL ACTIVITY TRACKER ── -->
+            ${sig.institutional?.available && sig.institutional.verdict !== 'NEUTRAL' ? `
+                <div class="scc-inst inst-${sig.institutional.verdict.toLowerCase()}">
+                    <div class="scc-inst-head">
+                        🏛 Institutional Activity: <b>${sig.institutional.verdict}</b>
+                        <span class="scc-inst-conf">${sig.institutional.confidence}% conf</span>
+                    </div>
+                    ${sig.institutional.signals?.length ? `<div class="scc-inst-signals">${sig.institutional.signals.slice(0,3).map(s => `• ${s}`).join('<br>')}</div>` : ''}
+                </div>
+            ` : ''}
+
             <!-- ── MASTER SIGNAL QUALITY (Priority 14 + 10) ── -->
             ${sig.signalQuality ? `
                 <div class="scc-quality grade-${sig.signalQuality.grade.toLowerCase().replace('+','plus')}">

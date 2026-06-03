@@ -39,6 +39,11 @@ import { computeCrossIndexLeadership } from './cross-index-leadership.js';
 import { forecastIV } from './iv-forecast.js';
 import { detectPremiumExplosion } from './premium-explosion.js';
 import { computeSignalQuality } from './signal-quality.js';
+import { startChainKeeper, getChain as getCachedChain, getChainStatus } from './chain-keeper.js';
+import { computeExitIntelligence } from './exit-intelligence.js';
+import { buildNarrative } from './narrative-engine.js';
+import { computeLiveRisk } from './risk-engine.js';
+import { detectInstitutionalActivity } from './institutional-activity.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -190,6 +195,11 @@ function makeProvider() {
 }
 const provider = makeProvider();
 
+// Start the persistent chain-keeper — server-side background poller that
+// caches the live option chain for all 4 indices + persists last-known-good
+// to SQLite. Solves the "chain went empty during volatility" UX issue.
+startChainKeeper(provider);
+
 // 1-click Upstox OAuth refresh — daily token via single browser click.
 // Routes: /api/auth/upstox/{login,callback,status}
 mountUpstoxOAuth(app, provider, () => `http://localhost:${PORT}`);
@@ -249,6 +259,12 @@ app.get('/api/scan/all', async (req, res) => {
         const result = await scanAllIndices({ provider, tf, count: 220 });
         res.json(result);
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── CHAIN-KEEPER STATUS — diagnostics for ops dashboard ──
+app.get('/api/chain-status', (req, res) => {
+    try { res.json({ ts: Date.now(), status: getChainStatus() }); }
+    catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── EQUITY CURVE — running cumulative P&L for the today-trades modal,
@@ -468,9 +484,26 @@ app.post('/api/signals/confluence', async (req, res) => {
         // Fetch chain ONCE and reuse — previously this endpoint fetched the
         // option chain 4 separate times (actionable, approval, strikes, expiry),
         // adding 1-2 seconds of latency and making the displayed LTPs stale.
+        // Use the persistent chain-keeper cache instead of hitting Upstox
+        // synchronously here. Returns the last-known-good chain instantly
+        // (sub-millisecond) and survives broker hiccups. Falls back to a
+        // live fetch if the keeper has nothing yet (first ~2s of boot).
         let sharedChain = [];
+        let chainMeta = null;
         if (result.side !== 'NO_TRADE') {
-            try { sharedChain = await provider.getOptionChain(symbol); } catch (_) {}
+            try {
+                const cached = getCachedChain(symbol);
+                sharedChain = cached.chain || [];
+                chainMeta = {
+                    status: cached.status,
+                    stalenessSec: cached.stalenessSec,
+                    rowCount: cached.rowCount
+                };
+                if (sharedChain.length === 0) {
+                    // Cold cache — fall back to direct fetch this one time
+                    try { sharedChain = await provider.getOptionChain(symbol); } catch (_) {}
+                }
+            } catch (_) {}
         }
 
         // Enrich with strike + SL/TP/sizing when a signal fires
@@ -615,6 +648,62 @@ app.post('/api/signals/confluence', async (req, res) => {
                         params: actionable.parameters
                     });
                 } catch (e) { console.error('[signal-quality]', e.message); }
+
+                // EXIT INTELLIGENCE — TP/SL probability + holding time
+                try {
+                    actionable.exitIntel = computeExitIntelligence({
+                        symbol, side: result.side,
+                        regime: result.regime?.regime,
+                        tier: actionable.potentialTier
+                    });
+                } catch (e) { console.error('[exit-intel]', e.message); }
+
+                // INSTITUTIONAL ACTIVITY TRACKER (sudden OI shifts etc.)
+                try {
+                    actionable.institutional = detectInstitutionalActivity({
+                        chain: sharedChain,
+                        spot: candles[candles.length - 1].close,
+                        params: actionable.parameters
+                    });
+                } catch (e) { console.error('[institutional]', e.message); }
+
+                // LIVE RISK ENGINE — current portfolio + market risk
+                try {
+                    const istToday = new Date(Date.now() + (5*60+30)*60000).toISOString().slice(0,10);
+                    const dayStart = new Date(istToday + 'T00:00:00+05:30').getTime();
+                    let todayPnl = 0;
+                    try {
+                        const { db: sqlite } = await import('./db.js');
+                        const r = sqlite.prepare(`SELECT COALESCE(SUM(pnl), 0) p FROM trades WHERE source='live' AND time>=?`).get(dayStart);
+                        todayPnl = r?.p || 0;
+                    } catch {}
+                    actionable.liveRisk = computeLiveRisk({
+                        params: actionable.parameters,
+                        ivForecast: actionable.ivForecast,
+                        eventGate,
+                        todayPnl,
+                        openPositions: tracker.getActive() ? 1 : 0
+                    });
+                } catch (e) { console.error('[live-risk]', e.message); }
+
+                // AI MARKET NARRATIVE — plain-English signal explanation
+                try {
+                    actionable.narrative = buildNarrative({
+                        side: result.side, symbol,
+                        params: actionable.parameters,
+                        regime: result.regime,
+                        oiFlow: actionable.oiFlow,
+                        ivForecast: actionable.ivForecast,
+                        leadership: actionable.leadership,
+                        premiumExplosion: actionable.premiumExplosion,
+                        expectedMove: actionable.expectedMove,
+                        signalQuality: actionable.signalQuality,
+                        similarity: actionable.similarity
+                    });
+                } catch (e) { console.error('[narrative]', e.message); }
+
+                // Chain meta for transparency
+                if (chainMeta) actionable.chainMeta = chainMeta;
             }
         }
 
