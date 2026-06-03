@@ -3479,3 +3479,99 @@ code {
 .scc-backtest-grid b.pos { color: var(--neon-green); }
 .scc-backtest-grid b.mid { color: var(--neon-amber, #ffb245); }
 .scc-backtest-grid b.neg { color: var(--neon-red); }
+
+/* OI Flow Analytics block — master spec: long buildup / short cover etc. */
+.scc-oiflow {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-oiflow.flow-bull { border-left: 3px solid var(--neon-green); background: rgba(0,208,156,0.05); }
+.scc-oiflow.flow-bear { border-left: 3px solid var(--neon-red); background: rgba(235,91,60,0.05); }
+.scc-oiflow.flow-neutral { border-left: 3px solid var(--text-3); }
+.scc-oiflow-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; color: var(--text-1); margin-bottom: 4px;
+    font-size: 10px; letter-spacing: 0.05em;
+}
+.scc-oiflow-conv {
+    font-size: 8.5px; padding: 1px 6px; border-radius: 2px;
+    background: var(--bg-3); color: var(--text-2); letter-spacing: 0.1em;
+}
+.scc-oiflow-reason {
+    color: var(--text-2); font-size: 10px; line-height: 1.4;
+}
+
+/* AI-learned confidence block */
+.scc-learned {
+    margin-top: 10px; padding: 8px 12px;
+    background: linear-gradient(135deg, rgba(77,125,255,0.06), rgba(0,208,156,0.04));
+    border: 1px solid rgba(77,125,255,0.4);
+    border-left: 3px solid #4d7dff;
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10.5px;
+}
+.scc-learned-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; color: var(--text-1);
+    font-size: 10px; letter-spacing: 0.05em;
+}
+.scc-learned-final {
+    font-size: 14px; font-weight: 800; color: #4d7dff;
+    font-variant-numeric: tabular-nums;
+}
+.scc-learned-note {
+    color: var(--text-3); font-size: 9.5px; margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Cross-index opportunity scanner — master-spec cross-index intelligence */
+.xi-grid {
+    display: grid; grid-template-columns: 1fr; gap: 6px;
+    padding: 8px 12px;
+}
+.xi-empty {
+    text-align: center; color: var(--text-3);
+    padding: 16px; font-size: 11px;
+}
+.xi-cell {
+    padding: 8px 10px; border-radius: 3px;
+    background: var(--bg-2); border-left: 3px solid var(--text-3);
+    font-family: var(--font-mono); font-size: 10.5px;
+    transition: all 0.15s ease;
+}
+.xi-cell:hover { background: var(--bg-3); transform: translateX(2px); }
+.xi-cell.xi-current { box-shadow: 0 0 0 1px var(--accent); }
+.xi-strong { border-left-color: var(--neon-green); background: rgba(0,208,156,0.08); }
+.xi-likely { border-left-color: var(--neon-amber, #ffb245); background: rgba(255,178,69,0.06); }
+.xi-potential { border-left-color: #4d7dff; }
+.xi-none, .xi-na { border-left-color: var(--text-3); opacity: 0.65; }
+.xi-row1 {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 3px;
+}
+.xi-sym { font-weight: 800; font-size: 11px; color: var(--text-1); flex: 1; }
+.xi-arrow { font-size: 14px; font-weight: 800; }
+.side-call .xi-arrow { color: var(--neon-green); }
+.side-put .xi-arrow { color: var(--neon-red); }
+.side-no .xi-arrow { color: var(--text-3); }
+.xi-tier {
+    font-size: 9px; padding: 1px 6px; border-radius: 2px;
+    font-weight: 800; letter-spacing: 0.06em;
+    background: var(--bg-3); color: var(--text-2);
+}
+.xi-strong .xi-tier { background: var(--neon-green); color: var(--bg-base); }
+.xi-likely .xi-tier { background: var(--neon-amber, #ffb245); color: #000; }
+.xi-potential .xi-tier { background: #4d7dff; color: #fff; }
+.xi-row2, .xi-row3 {
+    display: flex; gap: 10px; color: var(--text-3); font-size: 9.5px;
+    padding: 1px 0;
+}
+.xi-regime { color: var(--text-2); }
+.xi-tag {
+    font-size: 8.5px; padding: 0 4px; border-radius: 2px;
+    font-weight: 700;
+}
+.xi-tag.pos { background: rgba(0,208,156,0.18); color: var(--neon-green); }
+.xi-tag.neg { background: rgba(235,91,60,0.18); color: var(--neon-red); }

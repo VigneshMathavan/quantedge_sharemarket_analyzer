@@ -99,6 +99,10 @@ CREATE TABLE IF NOT EXISTS system_log (
 CREATE INDEX IF NOT EXISTS idx_syslog_ts ON system_log(ts);
 `);
 
+// Migration: add 'source' column on existing trades tables (was added later).
+try { db.exec("ALTER TABLE trades ADD COLUMN source TEXT DEFAULT 'live'"); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_trades_source ON trades(source)'); } catch {}
+
 console.log(`[db] SQLite initialized at ${DB_PATH}`);
 
 // ──────────────────────────────────────────────────────────────────
@@ -110,13 +114,13 @@ const insertTradeStmt = db.prepare(`
         entry_premium, exit_premium, sl_premium, t1_premium, t2_premium,
         spot_entry, spot_exit, lots, lot_size, quantity,
         pnl, pnl_pct, result, exit_reason, tier, confidence, regime,
-        firing_strategies, chain_snapshot, full_json
+        firing_strategies, chain_snapshot, full_json, source
     ) VALUES (
         @id, @time, @exit_time, @symbol, @side, @strike, @right,
         @entry_premium, @exit_premium, @sl_premium, @t1_premium, @t2_premium,
         @spot_entry, @spot_exit, @lots, @lot_size, @quantity,
         @pnl, @pnl_pct, @result, @exit_reason, @tier, @confidence, @regime,
-        @firing_strategies, @chain_snapshot, @full_json
+        @firing_strategies, @chain_snapshot, @full_json, @source
     )
 `);
 
@@ -148,7 +152,8 @@ export function saveTrade(t) {
         regime: t.regime || null,
         firing_strategies: JSON.stringify(t.firingStrategies || []),
         chain_snapshot: JSON.stringify(t.chainSnapshot || null),
-        full_json: JSON.stringify(t)
+        full_json: JSON.stringify(t),
+        source: t.source || 'live'
     };
     try {
         insertTradeStmt.run(row);

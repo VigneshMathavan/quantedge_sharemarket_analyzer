@@ -2505,6 +2505,30 @@ function renderActionableSignal(sig, forecast, approval, strikeOptions, expiry) 
                 Spot entry ${sig.spot.entry} → SL ${sig.spot.stopLoss} · T1 ${sig.spot.target1} · T2 ${sig.spot.target2}
             </div>
 
+            <!-- ── OI FLOW ANALYTICS (master spec: long buildup / short cover etc) ── -->
+            ${sig.oiFlow?.available && sig.oiFlow.verdict !== 'NEUTRAL' ? `
+                <div class="scc-oiflow ${sig.oiFlow.supportsCall ? 'flow-bull' : sig.oiFlow.supportsPut ? 'flow-bear' : 'flow-neutral'}">
+                    <div class="scc-oiflow-head">
+                        🌊 OI Flow · ${sig.oiFlow.verdict.replace(/_/g, ' ')}
+                        <span class="scc-oiflow-conv">${sig.oiFlow.conviction}</span>
+                    </div>
+                    <div class="scc-oiflow-reason">${sig.oiFlow.reason}</div>
+                </div>
+            ` : ''}
+
+            <!-- ── AI LEARNED WEIGHTS BREAKDOWN (when weights diverge from uniform) ── -->
+            ${sig.learnedConfidence ? `
+                <div class="scc-learned">
+                    <div class="scc-learned-head">
+                        🧪 AI-Weighted Confidence
+                        <span class="scc-learned-final">${sig.learnedConfidence.weightedConfidence}</span>
+                    </div>
+                    <div class="scc-learned-note">
+                        Per-pillar weights learned from past trade outcomes (uniform until ≥20 samples per pillar)
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- ── MULTI-TIMEFRAME ALIGNMENT GRID (master spec) ── -->
             ${sig.mtfAlignment ? `
                 <div class="scc-mtf">
@@ -3264,6 +3288,33 @@ window.showTodayTrades = async function() {
     const wr = todays.length ? Math.round(100 * wins / todays.length) : 0;
     const fmtTime = ts => new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
+    // Equity sparkline — running P&L through today's closed trades.
+    // SVG-rendered inline: width 680, height 60, padded.
+    let sparkSvg = '';
+    if (todays.length >= 1) {
+        let eq = 0;
+        const pts = todays.map(t => { eq += (t.pnl || 0); return eq; });
+        const min = Math.min(0, ...pts), max = Math.max(0, ...pts);
+        const range = (max - min) || 1;
+        const w = 680, h = 60, pad = 6;
+        const innerW = w - pad * 2, innerH = h - pad * 2;
+        const path = pts.map((y, i) => {
+            const x = pad + (pts.length === 1 ? innerW / 2 : (i / (pts.length - 1)) * innerW);
+            const yy = h - pad - ((y - min) / range) * innerH;
+            return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + yy.toFixed(1);
+        }).join(' ');
+        const zeroY = h - pad - ((0 - min) / range) * innerH;
+        const stroke = pts[pts.length - 1] >= 0 ? 'var(--neon-green)' : 'var(--neon-red)';
+        sparkSvg = `<div class="td-section" style="padding: 10px 18px;">
+            <div class="td-label" style="margin-bottom: 6px;">Equity Curve · ${todays.length} trades</div>
+            <svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="display:block;">
+                <line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${w-pad}" y2="${zeroY.toFixed(1)}"
+                      stroke="var(--text-3)" stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5"/>
+                <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+        </div>`;
+    }
+
     modal.innerHTML = `
         <div class="td-card" style="width: min(720px, 94vw)">
             <div class="td-head">
@@ -3278,6 +3329,7 @@ window.showTodayTrades = async function() {
                     <div><div class="td-label">Losses</div><b style="font-size:16px;color:var(--neon-red)">${losses}</b></div>
                     <div><div class="td-label">Win Rate</div><b style="font-size:16px">${wr}%</b></div>
                 </div>
+                ${sparkSvg}
                 ${todays.length === 0 ? `
                     <div class="td-section" style="text-align:center;color:var(--text-3);padding:30px;">
                         No trades closed today yet.<br>
@@ -3658,3 +3710,57 @@ function toast(msg, type = 'success') {
     setTimeout(() => t.classList.add('fade'), 3000);
     setTimeout(() => t.remove(), 3500);
 }
+
+// ────────────────────────────────────────────────────────────────
+//  Cross-Index Scanner — polls /api/scan/all every 8s, renders grid
+// ────────────────────────────────────────────────────────────────
+async function refreshCrossIndexScan() {
+    const wrap = document.getElementById('xi-grid');
+    const tsEl = document.getElementById('xi-ts');
+    if (!wrap) return;
+    try {
+        const tf = STATE.selectedTF || '5minute';
+        const r = await fetch(STATE.market.backend + `/api/scan/all?tf=${tf}&_=${Date.now()}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        if (tsEl) tsEl.textContent = new Date(d.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' IST · ' + tf;
+        if (!d.indices?.length) { wrap.innerHTML = '<div class="xi-empty">No data.</div>'; return; }
+        wrap.innerHTML = d.indices.map(row => {
+            if (row.status) {
+                return `<div class="xi-cell xi-na"><span class="xi-sym">${row.symbol}</span><span class="xi-tier">${row.status}</span></div>`;
+            }
+            const tierCls = (row.tier || 'none').toLowerCase();
+            const sideCls = row.side === 'BUY_CALL' ? 'side-call' : row.side === 'BUY_PUT' ? 'side-put' : 'side-no';
+            const sideArrow = row.side === 'BUY_CALL' ? '↑' : row.side === 'BUY_PUT' ? '↓' : '—';
+            const isCurrent = row.symbol === STATE.selectedSymbol;
+            return `<div class="xi-cell xi-${tierCls} ${sideCls} ${isCurrent?'xi-current':''}" data-symbol="${row.symbol}">
+                <div class="xi-row1">
+                    <span class="xi-sym">${row.symbol}</span>
+                    <span class="xi-arrow">${sideArrow}</span>
+                    <span class="xi-tier">${row.tier || '—'}</span>
+                </div>
+                <div class="xi-row2">
+                    <span>${row.confluenceScore || 0}% conf</span>
+                    <span>${row.firingCount || 0} fired</span>
+                    <span>ADX ${row.adx?.toFixed?.(0) ?? '—'}</span>
+                </div>
+                <div class="xi-row3">
+                    <span class="xi-regime">${row.regime || '—'}</span>
+                    ${row.bullBOS ? '<span class="xi-tag pos">↑BOS</span>' : ''}
+                    ${row.bearBOS ? '<span class="xi-tag neg">↓BOS</span>' : ''}
+                </div>
+            </div>`;
+        }).join('');
+        // Click to switch to that symbol
+        wrap.querySelectorAll('.xi-cell[data-symbol]').forEach(el => {
+            el.style.cursor = 'pointer';
+            el.onclick = () => {
+                const sym = el.dataset.symbol;
+                const tab = document.querySelector(`#symbol-tabs .sym-tab[data-symbol="${sym}"]`);
+                if (tab) tab.click();
+            };
+        });
+    } catch (e) { /* silent */ }
+}
+setTimeout(refreshCrossIndexScan, 2200);
+setInterval(refreshCrossIndexScan, 8000);

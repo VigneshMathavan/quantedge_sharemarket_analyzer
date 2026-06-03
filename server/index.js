@@ -30,6 +30,10 @@ import { logSignalFire } from './signal-journal.js';
 import { computeAllParameters, computeFactorScores } from './parameter-engine.js';
 import { findSimilarSetups, strategyBacktestSummary } from './similarity-engine.js';
 import { computeMTFAlignment } from './mtf-alignment.js';
+import { trainWeights, getCurrentWeights, applyLearnedWeights } from './factor-learner.js';
+import { analyzeOIFlow } from './oi-flow.js';
+import { buildEquityCurve } from './equity-curve.js';
+import { scanAllIndices } from './multi-index-scanner.js';
 import { tracker } from './active-trade.js';
 import { checkEventGate, nextEvent } from './strategies/event-gate.js';
 import { adaptiveWeights } from './strategies/adaptive-weights.js';
@@ -230,6 +234,41 @@ const engineV2 = new SignalEngineV2({
 });
 
 // --- REST endpoints ---
+// ── MULTI-INDEX PARALLEL SCANNER (master spec: cross-index intelligence) ──
+// Runs the orchestrator on NIFTY + BANKNIFTY + FINNIFTY + SENSEX in parallel
+// and returns a ranked grid showing which market has the strongest setup.
+//   GET /api/scan/all?tf=5minute
+app.get('/api/scan/all', async (req, res) => {
+    try {
+        const tf = req.query.tf || '5minute';
+        const result = await scanAllIndices({ provider, tf, count: 220 });
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── EQUITY CURVE — running cumulative P&L for the today-trades modal,
+//    ops dashboard, and (future) backtest detailed view ──
+app.get('/api/equity-curve', (req, res) => {
+    try {
+        const days = parseInt(req.query.days || '30', 10);
+        const sinceMs = Date.now() - days * 86400 * 1000;
+        const symbol = req.query.symbol || null;
+        res.json(buildEquityCurve({ sinceMs, symbol }));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── AI LEARNING ENGINE inspection + retrain ──
+// GET  /api/learner/weights → current per-pillar weights + sample counts
+// POST /api/learner/retrain → force immediate retrain from SQLite
+app.get('/api/learner/weights', (req, res) => {
+    try { res.json(getCurrentWeights()); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/learner/retrain', (req, res) => {
+    try { res.json(trainWeights()); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Parameter snapshot inspection — returns the full 50+ indicator vector
 // computed on the live candles + chain. Used for explainability + by the
 // ops dashboard to verify what the engine is seeing.
@@ -452,6 +491,12 @@ app.post('/api/signals/confluence', async (req, res) => {
                     });
                     actionable.parameters = params;
                     actionable.factorScores = computeFactorScores(params, result.side);
+                    // AI LEARNING ENGINE: apply learned per-pillar weights to
+                    // produce a weighted confidence. Defaults to uniform until
+                    // ≥20 trade samples per pillar. Never modifies strategy logic.
+                    try {
+                        actionable.learnedConfidence = applyLearnedWeights(actionable.factorScores);
+                    } catch (e) { console.error('[factor-learner]', e.message); }
 
                     // HISTORICAL INTELLIGENCE — query journal for similar setups
                     try {
@@ -480,6 +525,18 @@ app.post('/api/signals/confluence', async (req, res) => {
                         provider, symbol, side: result.side
                     });
                 } catch (e) { console.error('[mtf]', e.message); }
+
+                // OI FLOW ANALYTICS — buildup/unwinding regime from broker chain
+                try {
+                    const last = candles[candles.length - 1];
+                    const prev5 = candles[Math.max(0, candles.length - 5)];
+                    const dir5m = last.close - prev5.close;
+                    actionable.oiFlow = analyzeOIFlow({
+                        chain: sharedChain,
+                        spot: last.close,
+                        priceDirection5m: dir5m
+                    });
+                } catch (e) { console.error('[oi-flow]', e.message); }
             }
         }
 
