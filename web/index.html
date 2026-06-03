@@ -98,7 +98,27 @@
             <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
         <!-- Settings gear removed — edit capital / risk via sidebar Account section -->>
-        <div class="avatar">VK</div>
+        <div class="avatar-wrap">
+            <button class="avatar" id="avatar-menu-btn" aria-label="Open menu">VK</button>
+            <div class="avatar-menu" id="avatar-menu">
+                <a href="/ops.html" target="_blank" class="avatar-menu-item">
+                    <span class="ami-icon">📊</span>
+                    <div><b>Ops Dashboard</b><small>DB stats, signals, logs</small></div>
+                </a>
+                <a href="/ai-learning.html" target="_blank" class="avatar-menu-item">
+                    <span class="ami-icon">🧠</span>
+                    <div><b>AI Learning Panel</b><small>Live + historical weights</small></div>
+                </a>
+                <a href="/api/chain-status" target="_blank" class="avatar-menu-item">
+                    <span class="ami-icon">🔗</span>
+                    <div><b>Chain Status</b><small>Per-symbol freshness</small></div>
+                </a>
+                <a href="/api/health" target="_blank" class="avatar-menu-item">
+                    <span class="ami-icon">❤️</span>
+                    <div><b>Health Check</b><small>Server uptime</small></div>
+                </a>
+            </div>
+        </div>
     </div>
 </header>
 

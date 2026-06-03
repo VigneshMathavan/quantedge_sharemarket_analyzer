@@ -3794,3 +3794,43 @@ code {
 }
 .scc-inst-conf { font-size: 9.5px; color: var(--text-2); }
 .scc-inst-signals { margin-top: 4px; font-size: 9.5px; color: var(--text-2); line-height: 1.55; }
+
+/* VK avatar dropdown menu */
+.avatar-wrap { position: relative; }
+.avatar {
+    cursor: pointer; user-select: none;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+.avatar:hover { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow-soft); }
+.avatar-menu {
+    display: none;
+    position: absolute; top: calc(100% + 8px); right: 0;
+    min-width: 240px;
+    background: var(--bg-1); border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    z-index: 9999;
+    overflow: hidden;
+}
+.avatar-menu.open { display: block; }
+.avatar-menu-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    color: var(--text-1); text-decoration: none;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.12s;
+}
+.avatar-menu-item:last-child { border-bottom: none; }
+.avatar-menu-item:hover { background: var(--bg-2); }
+.avatar-menu-item .ami-icon {
+    font-size: 18px; width: 28px; text-align: center;
+}
+.avatar-menu-item b {
+    display: block; font-size: 12px; font-weight: 800;
+    font-family: var(--font-mono);
+}
+.avatar-menu-item small {
+    display: block; font-size: 10px; color: var(--text-3);
+    font-family: var(--font-mono); margin-top: 2px;
+}

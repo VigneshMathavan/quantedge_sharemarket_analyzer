@@ -3939,3 +3939,17 @@ async function refreshCrossIndexScan() {
 }
 setTimeout(refreshCrossIndexScan, 2200);
 setInterval(refreshCrossIndexScan, 8000);
+
+// VK avatar dropdown menu
+(function setupAvatarMenu() {
+    const btn = document.getElementById('avatar-menu-btn');
+    const menu = document.getElementById('avatar-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target) && e.target !== btn) menu.classList.remove('open');
+    });
+})();

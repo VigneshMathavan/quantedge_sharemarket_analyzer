@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QuantEdge — AI Learning Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+    background: #0a0e1a; color: #d8dde6; padding: 24px; line-height: 1.5;
+}
+h1 { font-size: 22px; margin-bottom: 8px; color: #fff; }
+.sub { color: #7888a0; font-size: 12px; margin-bottom: 24px; }
+.grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-bottom: 24px;
+}
+.card {
+    background: #131829; border: 1px solid #1f2942; border-radius: 4px;
+    padding: 14px;
+}
+.card-label {
+    font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #7888a0; margin-bottom: 6px;
+}
+.card-val { font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.card-sub { font-size: 10px; color: #7888a0; margin-top: 4px; }
+.section { margin-bottom: 28px; }
+.section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+    color: #4d7dff; font-weight: 800; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid #1f2942;
+}
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { text-align: left; padding: 8px; color: #7888a0; font-weight: 700;
+     border-bottom: 1px solid #1f2942; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.08em; }
+td { padding: 8px; border-bottom: 1px solid #131829; color: #d8dde6; vertical-align: middle; }
+.pillar-row { display: grid; grid-template-columns: 130px 1fr 60px 80px 100px; gap: 10px;
+    align-items: center; padding: 10px; border-bottom: 1px solid #131829; }
+.pillar-name { font-weight: 800; color: #fff; text-transform: capitalize; }
+.pillar-bar { height: 8px; background: #1f2942; border-radius: 4px; overflow: hidden; position: relative; }
+.pillar-bar-fill { display: block; height: 100%; transition: width 0.4s ease; background: #4d7dff; }
+.pillar-bar-fill.pos { background: #00d09c; }
+.pillar-bar-fill.neg { background: #eb5b3c; }
+.pillar-weight { font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; text-align: right; }
+.pillar-corr { font-size: 10px; color: #7888a0; }
+.pillar-samples { font-size: 10px; color: #7888a0; text-align: right; }
+.pillar-status { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 2px;
+    background: #1f2942; color: #7888a0; letter-spacing: 0.06em; }
+.pillar-status.learned { background: rgba(0,208,156,0.15); color: #00d09c; }
+.pillar-status.uniform { background: rgba(255,178,69,0.15); color: #ffb245; }
+.dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #00d09c; margin-right: 6px; box-shadow: 0 0 6px #00d09c;
+}
+a { color: #4d7dff; text-decoration: none; }
+.btn-action {
+    background: #4d7dff; color: #fff; border: none; padding: 8px 14px;
+    border-radius: 3px; font-family: inherit; font-size: 11px;
+    font-weight: 700; cursor: pointer; letter-spacing: 0.05em;
+}
+.btn-action:hover { background: #5d8dff; }
+.actions { display: flex; gap: 10px; margin-bottom: 18px; }
+.evolution {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
+    margin-top: 8px;
+}
+.evolution-cell {
+    padding: 6px; background: #1f2942; border-radius: 3px;
+    text-align: center;
+}
+.evolution-cell .ec-pillar { font-size: 9px; color: #7888a0; text-transform: capitalize; }
+.evolution-cell .ec-val { font-size: 13px; font-weight: 800; color: #fff; margin-top: 2px; }
+.evolution-cell .ec-delta { font-size: 9px; margin-top: 1px; }
+.ec-delta.up { color: #00d09c; }
+.ec-delta.down { color: #eb5b3c; }
+.muted { color: #7888a0; font-size: 10.5px; }
+</style>
+</head>
+<body>
+    <h1>🧠 AI Learning Panel</h1>
+    <div class="sub">
+        <span id="status-dot" class="dot"></span><span id="status-text">Loading…</span>
+        · <a href="/">← back to trading view</a>
+        · <a href="/ops.html">Ops Dashboard</a>
+        · refresh every 5s
+    </div>
+
+    <div class="actions">
+        <button class="btn-action" onclick="forceRetrain()">⚡ Retrain Now</button>
+        <span class="muted" id="train-status"></span>
+    </div>
+
+    <div class="grid" id="stats-grid"></div>
+
+    <div class="section">
+        <div class="section-title">Per-Pillar Learned Weights — current state</div>
+        <div id="weights-list"></div>
+        <div class="muted" style="padding: 10px;">
+            <b>How to read:</b> Weight = 1.0 means uniform (no learning yet).
+            &gt;1 means this pillar is positively correlated with winning trades.
+            &lt;1 means negatively correlated. Bounded to [0.4, 1.6].
+            ≥20 samples needed before a pillar diverges from 1.0.
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Recent training run details</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pillar</th>
+                    <th>Mean score on WINS</th>
+                    <th>Mean score on LOSSES</th>
+                    <th>Δ (win − loss)</th>
+                    <th>Verdict</th>
+                </tr>
+            </thead>
+            <tbody id="run-details"></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Performance breakdown — recent live trades</div>
+        <table>
+            <thead>
+                <tr><th>Time IST</th><th>Symbol</th><th>Strike</th><th>Side</th><th>Tier</th><th>P&L</th><th>Result</th></tr>
+            </thead>
+            <tbody id="recent-trades"></tbody>
+        </table>
+    </div>
+
+<script>
+async function load() {
+    try {
+        const [weightsRes, opsRes, histRes] = await Promise.all([
+            fetch('/api/learner/weights?_=' + Date.now()),
+            fetch('/api/ops?_=' + Date.now()),
+            fetch('/api/history/week?_=' + Date.now())
+        ]);
+        const w = await weightsRes.json();
+        const ops = await opsRes.json();
+        const hist = await histRes.json();
+
+        document.getElementById('status-dot').className = 'dot';
+        const trainedAgo = w.trainedAt ? Math.round((Date.now() - w.trainedAt) / 60000) : null;
+        document.getElementById('status-text').textContent =
+            `LIVE · last trained ${trainedAgo != null ? trainedAgo + ' min ago' : 'never'}`;
+
+        // Stats grid
+        const grid = document.getElementById('stats-grid');
+        const learnedCount = Object.values(w.weights || {}).filter(v => v.isLearned).length;
+        grid.innerHTML = `
+            <div class="card"><div class="card-label">Training Samples</div>
+              <div class="card-val">${(w.totalSamples || 0).toLocaleString()}</div>
+              <div class="card-sub">trades joined with signal_journal</div></div>
+            <div class="card"><div class="card-label">Pillars Learned</div>
+              <div class="card-val">${learnedCount} / 8</div>
+              <div class="card-sub">≥20 samples each</div></div>
+            <div class="card"><div class="card-label">Overall Win Rate</div>
+              <div class="card-val">${w.overallWinRate ?? '—'}%</div>
+              <div class="card-sub">on training set</div></div>
+            <div class="card"><div class="card-label">DB Size</div>
+              <div class="card-val">${ops.sqlite?.dbSizeMB ?? '—'} MB</div>
+              <div class="card-sub">${(ops.sqlite?.signalCount ?? 0).toLocaleString()} signals total</div></div>
+        `;
+
+        // Pillar weights bars
+        const wlist = document.getElementById('weights-list');
+        wlist.innerHTML = '';
+        for (const [pillar, v] of Object.entries(w.weights || {})) {
+            const corrAbs = Math.abs(v.correlation || 0);
+            const barPct = Math.min(100, ((v.weight - 0.4) / 1.2) * 100);
+            const cls = (v.correlation || 0) > 0.005 ? 'pos' : (v.correlation || 0) < -0.005 ? 'neg' : '';
+            const sBadge = v.isLearned ? 'learned' : 'uniform';
+            wlist.insertAdjacentHTML('beforeend', `
+                <div class="pillar-row">
+                    <div class="pillar-name">${pillar}</div>
+                    <div class="pillar-bar"><span class="pillar-bar-fill ${cls}" style="width:${barPct.toFixed(0)}%"></span></div>
+                    <div class="pillar-weight">${v.weight.toFixed(3)}</div>
+                    <div class="pillar-corr">corr ${(v.correlation || 0) >= 0 ? '+' : ''}${(v.correlation || 0).toFixed(3)}</div>
+                    <div>
+                        <span class="pillar-samples">n=${(v.samples || 0).toLocaleString()}</span>
+                        <span class="pillar-status ${sBadge}">${v.isLearned ? '✓ LEARNED' : 'UNIFORM'}</span>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Run details table
+        const rd = document.getElementById('run-details');
+        rd.innerHTML = '';
+        for (const [pillar, v] of Object.entries(w.weights || {})) {
+            const delta = (v.meanScoreOnWins != null && v.meanScoreOnLosses != null)
+                ? (v.meanScoreOnWins - v.meanScoreOnLosses) : null;
+            const verdict = !v.isLearned ? '(needs more data)'
+                : (v.correlation || 0) > 0.05 ? '✓ Predictive (positive)'
+                : (v.correlation || 0) < -0.05 ? '⚠ Predictive (negative)'
+                : '○ Weak signal — near random';
+            rd.insertAdjacentHTML('beforeend', `<tr>
+                <td><b>${pillar}</b></td>
+                <td>${v.meanScoreOnWins ?? '—'}</td>
+                <td>${v.meanScoreOnLosses ?? '—'}</td>
+                <td>${delta != null ? (delta >= 0 ? '+' : '') + delta.toFixed(1) : '—'}</td>
+                <td>${verdict}</td>
+            </tr>`);
+        }
+
+        // Recent live trades
+        const rt = document.getElementById('recent-trades');
+        const live = (hist.trades || []).filter(t => !t.source || t.source === 'live').slice(-20).reverse();
+        rt.innerHTML = live.length === 0
+            ? '<tr><td colspan="7" style="text-align:center; color:#7888a0; padding:20px">No live trades yet.</td></tr>'
+            : live.map(t => {
+                const ts = t.exitTime || t.time;
+                const ist = new Date(ts + (5*60+30)*60000).toISOString().slice(11,16);
+                const pnl = t.pnl || 0;
+                return `<tr>
+                    <td>${ist}</td><td>${t.symbol || '—'}</td>
+                    <td><b>${t.strike || '?'}${t.right || ''}</b></td>
+                    <td>${t.side === 'BUY_CALL' ? 'CALL' : t.side === 'BUY_PUT' ? 'PUT' : '—'}</td>
+                    <td>${t.tier || '—'}</td>
+                    <td style="color:${pnl >= 0 ? '#00d09c' : '#eb5b3c'}; font-weight:800">${pnl >= 0 ? '+' : ''}₹${pnl}</td>
+                    <td>${t.result || '—'}</td>
+                </tr>`;
+            }).join('');
+    } catch (e) {
+        document.getElementById('status-dot').style.background = '#eb5b3c';
+        document.getElementById('status-text').textContent = 'OFFLINE — ' + e.message;
+    }
+}
+
+async function forceRetrain() {
+    const s = document.getElementById('train-status');
+    s.textContent = 'Retraining…';
+    try {
+        const r = await fetch('/api/learner/retrain', { method: 'POST' });
+        const d = await r.json();
+        s.textContent = `✓ Retrained on ${d.totalSamples?.toLocaleString()} samples · ${d.overallWinRate}% WR`;
+        load();
+    } catch (e) { s.textContent = 'Failed: ' + e.message; }
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
