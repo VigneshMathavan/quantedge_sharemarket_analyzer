@@ -16,9 +16,11 @@ try { _capSaved = JSON.parse(localStorage.getItem('qe-capital') || 'null'); } ca
 //     proxies /ws too). Local dev hits the backend WS directly.
 // ────────────────────────────────────────────────────────────────
 function detectBackend() {
-    const host = window.location.hostname;
-    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '';
-    return isLocal ? 'http://localhost:4300' : '';   // '' = relative
+    // ALWAYS use the same origin as the page — so http://localhost:4310/
+    // routes API calls to localhost:4310, not to a hardcoded :4300 that
+    // may be running stale code (or nothing at all).
+    // Empty string = relative URL = same origin = works on any port.
+    return '';
 }
 // ALWAYS use auto-detect — ignore any stale localStorage backend (would
 // pin a deployed user to localhost). User can still override via settings.
