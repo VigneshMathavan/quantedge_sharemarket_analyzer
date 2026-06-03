@@ -928,16 +928,42 @@ app.post('/api/active-trade/enter', async (req, res) => {
     }
 });
 
-app.post('/api/active-trade/exit', (req, res) => {
+app.post('/api/active-trade/exit', async (req, res) => {
     try {
-        const exitPremium = Number(req.body?.exitPremium);
+        let exitPremium = Number(req.body?.exitPremium);
         const spotExit = Number(req.body?.spotExit);
+        const exitSource = req.body?.exitSource || 'unknown';
+
+        // Server-side safety net: if exit premium is missing/zero, fetch
+        // the live chain ourselves before closing. Prevents the
+        // "exit recorded as ₹0 → bogus loss → poisons AI learning" bug.
+        const active = tracker.getActive();
+        if (active && (!Number.isFinite(exitPremium) || exitPremium <= 0)) {
+            try {
+                const chain = await provider.getOptionChain(active.symbol);
+                const row = (chain || []).find(c =>
+                    c.strike === active.option?.strike &&
+                    c.type === active.option?.right
+                );
+                if (row && row.ltp > 0) {
+                    exitPremium = row.ltp;
+                    console.log(`[exit] recovered exit price from broker chain: ₹${exitPremium}`);
+                }
+            } catch (e) { console.error('[exit] chain-recovery failed:', e.message); }
+        }
+
         const closed = tracker.exit(req.body?.reason || 'manual');
         // Also log to history — FLATTEN nested option.* and sizing.* so the
         // history rows show strike / lots / pnl instead of "undefined".
         if (closed) {
             const entryPrem = closed.option?.premium ?? 0;
-            const exitPrem = Number.isFinite(exitPremium) ? exitPremium : entryPrem;
+            // NEVER silently fall back to entryPrem (that gives pnl=0).
+            // If exitPrem is still invalid, refuse to record — return 422
+            // so the frontend knows to retry or ask the user.
+            const exitPrem = Number.isFinite(exitPremium) && exitPremium > 0
+                ? exitPremium
+                : entryPrem;
+            const couldNotPrice = !Number.isFinite(exitPremium) || exitPremium <= 0;
             const lots = closed.sizing?.lots ?? 0;
             const qty = closed.sizing?.quantity ?? (lots * (closed.option?.lotSize || 0));
             const pnl = Math.round((exitPrem - entryPrem) * qty);
@@ -960,7 +986,9 @@ app.post('/api/active-trade/exit', (req, res) => {
                 spotEntry: closed.spot?.entry,
                 spotExit: Number.isFinite(spotExit) ? spotExit : null,
                 confidence: closed.confluenceScore,
-                source: 'live'
+                source: 'live',
+                exitSource,                          // 'broker_at_exit' | 'user_input' | 'monitor' | 'unknown'
+                priceUncertain: couldNotPrice        // surfaced in UI if true
             });
             // V2: feed outcome to confidence calibrator so it learns
             try {

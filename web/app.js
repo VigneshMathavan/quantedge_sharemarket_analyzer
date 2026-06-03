@@ -714,7 +714,7 @@ function scheduleChainRefresh() {
     _chainTickTimer = setInterval(() => {
         if (!STATE.selectedSymbol) return;
         loadOptionChain();
-    }, isMarketHours() ? 3000 : 20000);
+    }, isMarketHours() ? 2000 : 15000);   // 2s live (was 3s) for SENSEX-expiry speed
 }
 setTimeout(() => {
     scheduleChainRefresh();
@@ -2249,6 +2249,17 @@ async function refreshAIRationale() {
         //      up to 60s before flipping to idle. Lets the user read it.
         // ─────────────────────────────────────────────────────────────
         const a = data.actionable;
+        // ─────────────────────────────────────────────────────────────
+        //  ACTIVE TRADE LOCK: when a trade is live, the signal card
+        //  becomes a status panel for that trade. New candidate signals
+        //  do NOT overwrite it. Prevents the "signals flashing while
+        //  I'm holding a position" UX bug. Exit must complete first.
+        // ─────────────────────────────────────────────────────────────
+        if (STATE.activeTrade) {
+            // Trade-monitor panel handles its own rendering on its own poll
+            // (refreshTradeMonitor every 2s). Don't touch signal-card-wrap.
+            return;
+        }
         // If chain is blocked (broker unavailable), show explicit warning so
         // user doesn't think the engine is silent — they see WHY no card.
         if (data.chainBlocked && !a) {
@@ -2731,36 +2742,80 @@ function persistLocalTrade(trade, { phase, exitPremium = null, spotExit = null, 
 
 window.exitActiveTrade = async function(reason, skipConfirm = false) {
     if (!skipConfirm && !confirm('Close this trade?')) return;
+    const activeAtExit = STATE.activeTrade;     // snapshot before we null it
+    if (!activeAtExit) {
+        toast('No active trade to close', 'error');
+        return;
+    }
     try {
-        const exitPremium = STATE.lastMonitor?.premEstimate ?? null;
+        // ─────────────────────────────────────────────────────────────
+        //  CRITICAL: capture the LIVE broker LTP for the trade's strike
+        //  at the moment of exit. Earlier this used STATE.lastMonitor
+        //  which could be null (chain unavailable) → exit recorded as
+        //  ₹0 → bogus loss → bogus AI learning. Now we fetch fresh.
+        // ─────────────────────────────────────────────────────────────
+        const strike = activeAtExit.option?.strike;
+        const right = activeAtExit.option?.right;
+        const symbol = activeAtExit.symbol;
+        let exitPremium = STATE.lastMonitor?.premEstimate ?? null;
+        let exitSource = STATE.lastMonitor?.premiumSource || 'monitor';
+
+        if (exitPremium == null || exitPremium === 0) {
+            // Last-resort: query the chain endpoint right now
+            try {
+                const r = await fetch(`${STATE.market.backend}/api/option-chain/${symbol}?_=${Date.now()}`);
+                if (r.ok) {
+                    const chain = await r.json();
+                    const row = (Array.isArray(chain) ? chain : []).find(c =>
+                        c.strike === strike && c.type === right
+                    );
+                    if (row && row.ltp > 0) {
+                        exitPremium = row.ltp;
+                        exitSource = 'broker_at_exit';
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // If STILL null, ask user for the exit price rather than guess
+        if (exitPremium == null || !isFinite(exitPremium) || exitPremium <= 0) {
+            const userInput = prompt(
+                `⚠️ Live broker LTP unavailable for ${strike}${right}.\n\n` +
+                `To record this trade accurately, enter the exit premium you actually traded at:`,
+                String(activeAtExit.option?.premium || 0)
+            );
+            if (userInput === null) return;   // user cancelled
+            const parsed = parseFloat(userInput);
+            if (!isFinite(parsed) || parsed < 0) {
+                toast('Invalid exit premium — aborted', 'error');
+                return;
+            }
+            exitPremium = parsed;
+            exitSource = 'user_input';
+        }
+
         const spotExit = STATE.lastMonitor?.spotNow ?? null;
-        const activeAtExit = STATE.activeTrade;     // snapshot before we null it
-        // Compute P&L for local persistence
-        const entryPrem = activeAtExit?.option?.premium ?? 0;
-        const lots = activeAtExit?.sizing?.lots ?? 0;
-        const lotSize = activeAtExit?.option?.lotSize ?? 0;
-        const localPnl = exitPremium != null
-            ? Math.round((exitPremium - entryPrem) * lots * lotSize)
-            : 0;
+        const entryPrem = activeAtExit.option?.premium ?? 0;
+        const lots = activeAtExit.sizing?.lots ?? 0;
+        const lotSize = activeAtExit.option?.lotSize ?? 0;
+        const localPnl = Math.round((exitPremium - entryPrem) * lots * lotSize);
+
         await fetch(STATE.market.backend + '/api/active-trade/exit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: reason || 'manual', exitPremium, spotExit })
+            body: JSON.stringify({ reason: reason || 'manual', exitPremium, spotExit, exitSource })
         });
-        // PERSIST exit to localStorage so it survives Railway redeploys
-        if (activeAtExit) {
-            persistLocalTrade(activeAtExit, {
-                phase: 'exited',
-                exitPremium,
-                spotExit,
-                exitReason: reason || 'manual',
-                pnl: localPnl
-            });
-        }
+        persistLocalTrade(activeAtExit, {
+            phase: 'exited', exitPremium, spotExit,
+            exitReason: reason || 'manual', pnl: localPnl
+        });
         STATE.activeTrade = null;
         STATE.lastMonitor = null;
-        toast(`Trade closed · ${localPnl >= 0 ? '+' : ''}${fmtCurrency(localPnl)}`, localPnl >= 0 ? 'success' : 'error');
+        toast(
+            `Trade closed @ ₹${exitPremium.toFixed(2)} (${exitSource}) · ${localPnl >= 0 ? '+' : ''}${fmtCurrency(localPnl)}`,
+            localPnl >= 0 ? 'success' : 'error'
+        );
         document.getElementById('trade-monitor').innerHTML = '';
-        refreshHistory();   // refresh P&L pill + history list
+        refreshHistory();
     } catch (e) {
         toast('Failed to exit: ' + e.message, 'error');
     }

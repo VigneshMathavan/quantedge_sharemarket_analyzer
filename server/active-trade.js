@@ -151,10 +151,40 @@ class ActiveTradeTracker {
             exitNow = true;
             exitReason = 'SL_HIT';
         }
+        // 1b. PRE-SL APPROACH WARNING — fires when premium is within 25% of SL
+        //     distance from entry. NOT an exit, but a loud heads-up so user
+        //     can decide to exit early or wait for a bounce.
+        if (!exitNow) {
+            const distFromEntryToSL = s.option.premium - s.option.premiumSL;   // positive
+            const distFromCurToSL = premEstimate - s.option.premiumSL;
+            const pctOfWay = distFromEntryToSL > 0 ? 1 - (distFromCurToSL / distFromEntryToSL) : 0;
+            if (pctOfWay >= 0.75 && pctOfWay < 1.0) {
+                warnings.push({
+                    tag: 'APPROACHING_SL',
+                    msg: `⚠️ Premium ₹${premEstimate.toFixed(2)} is ${Math.round(pctOfWay*100)}% of way to SL ₹${s.option.premiumSL} — consider early exit`,
+                    severity: 70
+                });
+                warningScore += 50;
+            }
+        }
         // 2. T1 hit (not an exit but a clear signal to book)
         if (!exitNow && premEstimate >= s.option.premiumT1) {
             warnings.push({ tag: 'T1_HIT', msg: `Target 1 hit — book 50%, trail rest`, severity: 60 });
             warningScore += 60;
+        }
+        // 2b. APPROACHING T1 — early heads-up so user can prepare a profit-take
+        if (!exitNow) {
+            const t1Move = s.option.premiumT1 - s.option.premium;     // positive
+            const curMove = premEstimate - s.option.premium;
+            const t1Pct = t1Move > 0 ? (curMove / t1Move) : 0;
+            if (t1Pct >= 0.75 && t1Pct < 1.0) {
+                warnings.push({
+                    tag: 'APPROACHING_T1',
+                    msg: `🎯 ${Math.round(t1Pct*100)}% to T1 ₹${s.option.premiumT1} — ready to book`,
+                    severity: 40
+                });
+                warningScore += 30;
+            }
         }
         // 3. Time stop (past 15:15 IST)
         const istMs = Date.now() + (5 * 60 + 30) * 60 * 1000;

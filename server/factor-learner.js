@@ -60,15 +60,28 @@ function pointBiserial(scores, outcomes) {
 // ──────────────────────────────────────────────────────────────────
 function loadTrainingSet() {
     const sinceMs = Date.now() - MAX_LOOKBACK_DAYS * 86400 * 1000;
+    // CRITICAL: only train on REAL live trades (source='live'). The
+    // mass backtest seed used a primitive ATR-bracket simulator that
+    // produces biased outcomes — letting those into the learner
+    // poisons the weights. Live trades represent the actual edge.
+    // If <50 live trades exist, fall back to seed so we have any
+    // baseline at all — but flagged in the response.
+    const liveCount = db.prepare(`SELECT COUNT(*) c FROM trades WHERE source = 'live' AND pnl IS NOT NULL`).get().c;
+    const onlyLive = liveCount >= 50;
+    const sourceFilter = onlyLive ? `AND t.source = 'live'` : '';
     const rows = db.prepare(`
-        SELECT j.full_json AS sig_json, t.pnl
+        SELECT j.full_json AS sig_json, t.pnl, t.source
           FROM signal_journal j
           JOIN trades t ON t.time = j.ts
                        AND t.symbol = j.symbol
                        AND t.side = j.side
                        AND t.pnl IS NOT NULL
          WHERE j.ts >= ?
+         ${sourceFilter}
     `).all(sinceMs);
+    if (!onlyLive && liveCount > 0) {
+        console.log(`[factor-learner] only ${liveCount} live trades — training on mixed seed+live until ≥50 live`);
+    }
 
     const samples = [];
     for (const r of rows) {

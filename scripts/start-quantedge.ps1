@@ -24,10 +24,10 @@ $Today = Get-Date -Format 'yyyy-MM-dd'
 $LogFile = Join-Path $LogDir "server-$Today.log"
 
 # Quick bail-out if already running on port 4300
-$existing = Get-NetTCPConnection -LocalPort 4300 -ErrorAction SilentlyContinue
+$existing = Get-NetTCPConnection -LocalPort 4300 -State Listen -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "QuantEdge already listening on port 4300 (PID $($existing.OwningProcess[0]))" -ForegroundColor Yellow
-    Add-Content $LogFile "[$(Get-Date -Format 's')] start skipped — already running"
+    Add-Content $LogFile "[$(Get-Date -Format 's')] start skipped - already running"
     exit 0
 }
 
@@ -50,7 +50,7 @@ while ($true) {
     }
     $restartCount++
     if ($restartCount -ge 5) {
-        Add-Content $LogFile "[$(Get-Date -Format 's')] too many crashes — giving up"
+        Add-Content $LogFile "[$(Get-Date -Format 's')] too many crashes - giving up"
         break
     }
     Start-Sleep -Seconds 10
