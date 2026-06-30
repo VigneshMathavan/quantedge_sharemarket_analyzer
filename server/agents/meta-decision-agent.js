@@ -24,6 +24,8 @@ import { selfCalibrator } from './self-calibrator.js';
 import { getMultiplier as getAdaptiveWeight, getAllMultipliers } from '../adaptive-meta-weights.js';
 // Phase 1 — Decision audit recording
 import { recordDecision } from '../audit-trail.js';
+// Phase 3 — Knowledge Graph consumption
+import { queryEdge } from '../knowledge-graph.js';
 import { sysLog } from '../db.js';
 
 // Per-agent contribution weights for the DIRECTIONAL combiner.
@@ -151,6 +153,18 @@ export class MetaDecisionAgent extends BaseAgent {
             const shrink = 1 - 0.3 * devil.confidence;     // up to 30% shrink
             confidence *= shrink;
             evidence.push(`Devil ${devil.objectionCount || 0} objections → × ${shrink.toFixed(2)}`);
+        }
+
+        // 8) Knowledge Graph Historical Edge (Phase 3)
+        if (side !== 'NO_TRADE') {
+            const kg = queryEdge({ regime: votes[0]?.regime, side, symbol, minSamples: 5 });
+            if (kg && kg.edge === 'NEGATIVE' && kg.winRate < 45) {
+                confidence *= 0.8;
+                evidence.push(`KG Historical Edge NEGATIVE (WR ${kg.winRate}%) → confidence × 0.8`);
+            } else if (kg && kg.edge === 'POSITIVE' && kg.winRate > 65) {
+                confidence = Math.min(1.0, confidence * 1.1);
+                evidence.push(`KG Historical Edge POSITIVE (WR ${kg.winRate}%) → confidence × 1.1`);
+            }
         }
 
         // Map confidence → 0-100 Omega score, then to 5-band tier
