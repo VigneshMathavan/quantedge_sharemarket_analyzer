@@ -64,6 +64,8 @@ import { mountUpstoxOAuth } from './upstox-oauth.js';
 import { mountFyersOAuth } from './fyers-oauth.js';
 import { marketGateway } from './market-gateway.js';
 import { getAccessTokenStatus as getFyersTokenStatus } from './fyers.js';
+// Phase 4 — TrueData WS
+import { startTrueData } from './truedata.js';
 import { startWeeklyScheduler, runRetrain } from './auto-retrain.js';
 import { classifyRegime } from './regime-engine.js';
 import { approveTrade } from './approval-engine.js';
@@ -299,6 +301,8 @@ startAgents({ provider, engine, engineV2 });
 // logs a warning and waits for OAuth (visit /api/fyers/login). The provider
 // chain still works via Upstox/Dhan in the meantime.
 try {
+    // Start TrueData websocket feed
+    startTrueData();
     marketGateway.start();
     mountFyersOAuth(app, marketGateway);
     // Re-emit FYERS ticks into the existing /ws so every browser gets push updates.
