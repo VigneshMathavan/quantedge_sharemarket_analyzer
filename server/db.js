@@ -97,7 +97,110 @@ CREATE TABLE IF NOT EXISTS system_log (
     message   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_syslog_ts ON system_log(ts);
+
+-- Omega "learn from everything" — every potential setup, regardless of score.
+-- Populated by observer.js on a fixed cadence for all 4 indices.
+-- Resolved (outcome filled in) 30 min after creation by the resolver loop.
+CREATE TABLE IF NOT EXISTS shadow_signals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              INTEGER NOT NULL,
+    symbol          TEXT NOT NULL,
+    side            TEXT,                -- BUY_CALL / BUY_PUT / NO_TRADE
+    confidence      REAL,                -- 0-100
+    band            TEXT,                -- REJECT/IGNORE/WATCHLIST/STRONG/ELITE
+    spot            REAL,
+    regime          TEXT,
+    conditions_json TEXT,                -- compact pillar breakdown
+    factor_scores_json TEXT,             -- {trend, vwap, volume, ...}
+    fired           INTEGER DEFAULT 0,   -- 1 if surfaced to UI (STRONG/ELITE)
+    resolved_at     INTEGER,             -- ts when outcome was scored
+    resolved_spot   REAL,                -- spot price 30 min later
+    move_pct        REAL,                -- signed % spot move
+    outcome         TEXT                 -- WIN / LOSS / FLAT (null until resolved)
+);
+CREATE INDEX IF NOT EXISTS idx_shadow_ts ON shadow_signals(ts);
+CREATE INDEX IF NOT EXISTS idx_shadow_symbol_band ON shadow_signals(symbol, band, ts);
+CREATE INDEX IF NOT EXISTS idx_shadow_unresolved ON shadow_signals(resolved_at, ts);
+CREATE INDEX IF NOT EXISTS idx_shadow_outcome ON shadow_signals(outcome, band);
+
+-- Phase 1: Decision audit trail (comprehensive)
+CREATE TABLE IF NOT EXISTS decision_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id TEXT,
+    signal_id TEXT,
+    ts INTEGER NOT NULL,
+    symbol TEXT,
+    side TEXT,
+    band TEXT,
+    omega REAL,
+    calibrated_score REAL,
+    fireable INTEGER,
+    regime TEXT,
+    regime_confidence REAL,
+    agent_votes_json TEXT,
+    bayesian_prob REAL,
+    ml_prediction REAL,
+    meta_weights_json TEXT,
+    factor_scores_json TEXT,
+    risk_level TEXT,
+    risk_reasons_json TEXT,
+    decision TEXT,
+    decision_reasons_json TEXT,
+    evidence_json TEXT,
+    expected_value REAL,
+    expected_rr REAL,
+    outcome TEXT,
+    pnl REAL,
+    exit_reason TEXT,
+    outcome_time INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_da_ts ON decision_audit(ts);
+CREATE INDEX IF NOT EXISTS idx_da_trace ON decision_audit(trace_id);
+CREATE INDEX IF NOT EXISTS idx_da_symbol ON decision_audit(symbol, ts);
+
+-- Phase 1: Agent performance tracking (per-regime)
+CREATE TABLE IF NOT EXISTS agent_performance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_name TEXT NOT NULL,
+    regime TEXT,
+    period TEXT,
+    precision_val REAL,
+    recall_val REAL,
+    f1 REAL,
+    accuracy REAL,
+    false_positive_rate REAL,
+    sharpe_contribution REAL,
+    ev_contribution REAL,
+    sample_count INTEGER,
+    timestamp INTEGER DEFAULT (unixepoch() * 1000)
+);
+CREATE INDEX IF NOT EXISTS idx_ap_agent ON agent_performance(agent_name, regime);
+
+-- Phase 1: Counterfactual log (expanded from KV)
+CREATE TABLE IF NOT EXISTS counterfactual_log_v2 (
+    id TEXT PRIMARY KEY,
+    signal_id TEXT NOT NULL,
+    symbol TEXT,
+    side TEXT,
+    strategy TEXT,
+    decision TEXT NOT NULL,
+    features_json TEXT,
+    predicted_outcome TEXT,
+    actual_outcome TEXT,
+    predicted_pnl REAL,
+    actual_pnl REAL,
+    regret REAL,
+    timestamp INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_cf2_decision ON counterfactual_log_v2(decision);
+CREATE INDEX IF NOT EXISTS idx_cf2_ts ON counterfactual_log_v2(timestamp);
 `);
+
+// Phase 9 — add MFE/MAE/RRR columns to shadow_signals if not present (idempotent ALTERs)
+try { db.exec("ALTER TABLE shadow_signals ADD COLUMN mfe_pct REAL"); } catch {}
+try { db.exec("ALTER TABLE shadow_signals ADD COLUMN mae_pct REAL"); } catch {}
+try { db.exec("ALTER TABLE shadow_signals ADD COLUMN rrr REAL"); } catch {}
+try { db.exec("ALTER TABLE shadow_signals ADD COLUMN bars_to_outcome INTEGER"); } catch {}
 
 // Migration: add 'source' column on existing trades tables (was added later).
 try { db.exec("ALTER TABLE trades ADD COLUMN source TEXT DEFAULT 'live'"); } catch {}
@@ -298,12 +401,161 @@ setInterval(() => {
 }, 3600 * 1000);
 
 // ──────────────────────────────────────────────────────────────────
+//  SHADOW SIGNALS — Omega "learn from everything"
+//  Every potential setup, every cadence tick, regardless of score.
+//  Resolved 30 min later by the observer's resolver loop.
+// ──────────────────────────────────────────────────────────────────
+const insertShadowStmt = db.prepare(`
+    INSERT INTO shadow_signals
+        (ts, symbol, side, confidence, band, spot, regime,
+         conditions_json, factor_scores_json, fired)
+    VALUES
+        (@ts, @symbol, @side, @confidence, @band, @spot, @regime,
+         @conditions_json, @factor_scores_json, @fired)
+`);
+const resolveShadowStmt = db.prepare(`
+    UPDATE shadow_signals
+       SET resolved_at = ?, resolved_spot = ?, move_pct = ?, outcome = ?,
+           mfe_pct = ?, mae_pct = ?, rrr = ?, bars_to_outcome = ?
+     WHERE id = ?
+`);
+const unresolvedShadowStmt = db.prepare(`
+    SELECT id, ts, symbol, side, spot
+      FROM shadow_signals
+     WHERE resolved_at IS NULL
+       AND ts <= ?
+     ORDER BY ts ASC
+     LIMIT ?
+`);
+const recentShadowStmt = db.prepare(`
+    SELECT * FROM shadow_signals
+     ORDER BY ts DESC
+     LIMIT ?
+`);
+const shadowStatsByBandStmt = db.prepare(`
+    SELECT band,
+           COUNT(*) total,
+           SUM(CASE WHEN outcome = 'WIN'  THEN 1 ELSE 0 END) wins,
+           SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) losses,
+           SUM(CASE WHEN outcome = 'FLAT' THEN 1 ELSE 0 END) flats,
+           SUM(CASE WHEN outcome IS NULL  THEN 1 ELSE 0 END) pending,
+           AVG(confidence) avg_conf
+      FROM shadow_signals
+     WHERE ts >= ?
+     GROUP BY band
+     ORDER BY avg_conf DESC
+`);
+
+export function saveShadowSignal(s) {
+    try {
+        const info = insertShadowStmt.run({
+            ts:         s.ts || Date.now(),
+            symbol:     s.symbol,
+            side:       s.side || 'NO_TRADE',
+            confidence: s.confidence ?? 0,
+            band:       s.band || 'REJECT',
+            spot:       s.spot ?? null,
+            regime:     s.regime || null,
+            conditions_json:    JSON.stringify(s.conditions || {}),
+            factor_scores_json: JSON.stringify(s.factorScores || {}),
+            fired:      s.fired ? 1 : 0
+        });
+        return info.lastInsertRowid;
+    } catch (e) {
+        sysLog('ERROR', 'shadow', 'insert failed: ' + e.message);
+        return null;
+    }
+}
+
+/**
+ * Resolve a shadow signal with full outcome metrics.
+ *
+ * If `forwardPath` is supplied (array of forward candles between entry ts and
+ * resolution ts), we compute:
+ *    move_pct        — end-to-end signed return
+ *    mfe_pct         — max favorable excursion (peak gain along the path)
+ *    mae_pct         — max adverse excursion (worst drawdown along the path)
+ *    rrr             — realized R-multiple = mfe / |mae|
+ *    bars_to_outcome — bar index where outcome was first triggered
+ *
+ * If no path is supplied (legacy callers / cold restart), we degrade to the
+ * simple end-to-end ±0.3% labeling so nothing breaks.
+ */
+export function resolveShadowSignal(id, resolvedSpot, side, originalSpot, forwardPath = null) {
+    if (!Number.isFinite(resolvedSpot) || !Number.isFinite(originalSpot) || originalSpot <= 0) return;
+    const movePct = ((resolvedSpot - originalSpot) / originalSpot) * 100;
+    const THRESH = 0.30;
+
+    // ── Path-based metrics (when available) ─────────────────────────────
+    let mfePct = null, maePct = null, rrr = null, barsToOutcome = null;
+    if (Array.isArray(forwardPath) && forwardPath.length) {
+        let maxFav = 0, maxAdv = 0;
+        let triggerBar = forwardPath.length;
+        for (let i = 0; i < forwardPath.length; i++) {
+            const c = forwardPath[i];
+            const high = c.high ?? c.close;
+            const low  = c.low  ?? c.close;
+            const upPct   = ((high - originalSpot) / originalSpot) * 100;
+            const downPct = ((low  - originalSpot) / originalSpot) * 100;
+            const fav = side === 'BUY_PUT' ? -downPct : upPct;
+            const adv = side === 'BUY_PUT' ? -upPct   : downPct;
+            if (fav > maxFav) maxFav = fav;
+            if (adv < maxAdv) maxAdv = adv;
+            if (triggerBar === forwardPath.length &&
+                (Math.abs(fav) >= THRESH || Math.abs(adv) >= THRESH)) {
+                triggerBar = i;
+            }
+        }
+        mfePct = parseFloat(maxFav.toFixed(3));
+        maePct = parseFloat(maxAdv.toFixed(3));
+        rrr = maePct < 0 ? parseFloat((mfePct / Math.abs(maePct)).toFixed(2)) : null;
+        barsToOutcome = triggerBar;
+    }
+
+    // ── Outcome label (direction-aware, threshold = 0.30%) ─────────────
+    let outcome = 'FLAT';
+    if (side === 'BUY_CALL') {
+        if (movePct >=  THRESH) outcome = 'WIN';
+        else if (movePct <= -THRESH) outcome = 'LOSS';
+    } else if (side === 'BUY_PUT') {
+        if (movePct <= -THRESH) outcome = 'WIN';
+        else if (movePct >=  THRESH) outcome = 'LOSS';
+    } else {
+        outcome = Math.abs(movePct) < THRESH ? 'WIN' : 'LOSS';
+    }
+
+    try {
+        resolveShadowStmt.run(
+            Date.now(), resolvedSpot, parseFloat(movePct.toFixed(3)), outcome,
+            mfePct, maePct, rrr, barsToOutcome,
+            id
+        );
+    } catch (e) {
+        sysLog('ERROR', 'shadow', 'resolve failed: ' + e.message);
+    }
+}
+
+export function getUnresolvedShadowSignals(olderThanMs, limit = 200) {
+    return unresolvedShadowStmt.all(olderThanMs, limit);
+}
+
+export function getRecentShadowSignals(limit = 100) {
+    return recentShadowStmt.all(limit);
+}
+
+export function getShadowStatsByBand(sinceMs) {
+    return shadowStatsByBandStmt.all(sinceMs || (Date.now() - 7 * 86400 * 1000));
+}
+
+// ──────────────────────────────────────────────────────────────────
 //  STATS — for ops dashboard
 // ──────────────────────────────────────────────────────────────────
 export function getDbStats() {
     return {
         tradeCount: db.prepare('SELECT COUNT(*) c FROM trades').get().c,
         signalCount: db.prepare('SELECT COUNT(*) c FROM signal_journal').get().c,
+        shadowCount: db.prepare('SELECT COUNT(*) c FROM shadow_signals').get().c,
+        shadowResolved: db.prepare('SELECT COUNT(*) c FROM shadow_signals WHERE outcome IS NOT NULL').get().c,
         logCount: db.prepare('SELECT COUNT(*) c FROM system_log').get().c,
         dbPath: DB_PATH,
         dbSizeMB: (fs.statSync(DB_PATH).size / 1024 / 1024).toFixed(2),
